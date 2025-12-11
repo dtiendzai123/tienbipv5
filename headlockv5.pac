@@ -3,49 +3,59 @@
 var DragHeadAntiShake = {
     enabled: true,
 
-    // độ nhạy xử lý rung
-    smoothing: 0.75,             // càng cao càng mượt
-    maxJitterClamp: 0.45,        // cắt rung mạnh
-    dragLockStrength: 1.0,       // giữ tâm dính đầu khi drag
-    recoverySpeed: 0.22,         // hồi về đầu khi lệch
-    fpsCompensation: true,       // chống rung do FPS cao
+    // ===== CONFIG =====
+    smoothFactor: 0.82,          // làm mượt gốc
+    fpsBoostFactor: 0.35,        // tăng mượt khi FPS cao
+    jitterCut: 0.55,             // cắt rung FPS cao
+    autoStick: 0.90,             // giữ dính đầu khi drag
+    returnForce: 0.28,           // kéo tâm quay lại đầu
+    deadzone: 0.65,              // vùng nhỏ bỏ rung hoàn toàn
+    limit: 10,                   // hạn chế không lố đầu
 
-    lastPos: {x:0, y:0},
+    last: {x:0, y:0},
 
-    smooth: function(cur, prev, s) {
-        return prev + (cur - prev) * s;
+    // smooth → low-pass filter
+    lerp: function(a, b, t) {
+        return a + (b - a) * t;
     },
 
-    update: function(crosshair, targetHead, dt) {
-        if (!this.enabled || !targetHead) return crosshair;
+    update: function(cross, head, dt) {
+        if (!this.enabled || !head) return cross;
 
-        // ================ BƯỚC 1 — CLAMP RUNG ================
-        let dx = targetHead.x - crosshair.x;
-        let dy = targetHead.y - crosshair.y;
+        // --- B1: vector lệch ---
+        let dx = head.x - cross.x;
+        let dy = head.y - cross.y;
 
-        // chống dư chuyển động nhỏ
-        if (Math.abs(dx) < this.maxJitterClamp) dx = dx * 0.25;
-        if (Math.abs(dy) < this.maxJitterClamp) dy = dy * 0.25;
+        // --- B2: deadzone chống rung nhỏ ---
+        if (Math.abs(dx) < this.deadzone) dx = 0;
+        if (Math.abs(dy) < this.deadzone) dy = 0;
 
-        // ================ BƯỚC 2 — DRAG TỰ ĐỘNG CÂN BẰNG ================
-        // nếu crosshair lệch khỏi đầu → kéo lại dần
-        crosshair.x += dx * this.dragLockStrength * this.recoverySpeed;
-        crosshair.y += dy * this.dragLockStrength * this.recoverySpeed;
+        // --- B3: clamp jitter mạnh ---
+        if (Math.abs(dx) < this.jitterCut) dx *= 0.18;
+        if (Math.abs(dy) < this.jitterCut) dy *= 0.18;
 
-        // ================ BƯỚC 3 — LÀM MƯỢT ================
-        let sm = this.smoothing;
-        if (this.fpsCompensation) {
-            // fps cao → smoothing ít → không rung
-            sm = Math.min(1.0, this.smoothing + dt * 30);
-        }
+        // --- B4: hạn chế không cho lố đầu ---
+        dx = Math.max(-this.limit, Math.min(this.limit, dx));
+        dy = Math.max(-this.limit, Math.min(this.limit, dy));
 
-        crosshair.x = this.smooth(crosshair.x, this.lastPos.x, sm);
-        crosshair.y = this.smooth(crosshair.y, this.lastPos.y, sm);
+        // --- B5: drag auto-stick (kéo tâm quay lại đầu) ---
+        cross.x += dx * this.autoStick * this.returnForce;
+        cross.y += dy * this.autoStick * this.returnForce;
 
-        this.lastPos.x = crosshair.x;
-        this.lastPos.y = crosshair.y;
+        // --- B6: adaptive smoothing theo FPS ---
+        let sm = this.smoothFactor;
+        sm += dt * this.fpsBoostFactor * 60;  
+        if (sm > 1) sm = 1;
 
-        return crosshair;
+        // --- B7: làm mượt ----------------------------------
+        cross.x = this.lerp(cross.x, this.last.x, sm);
+        cross.y = this.lerp(cross.y, this.last.y, sm);
+
+        // update state
+        this.last.x = cross.x;
+        this.last.y = cross.y;
+
+        return cross;
     }
 };
 
