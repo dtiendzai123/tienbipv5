@@ -2611,36 +2611,77 @@ var CONFIG = {
     maxDelta: 16,         // chống lố đầu
     headSize: 0.75,       // đảm bảo khóa đúng xương đầu
     jitterReduction: 0.55 // fix rung FPS cao
+lightAimForce: 0.25,       // càng cao càng hút nhẹ vào đầu
+    dragAssistBoost: 0.16,     // phụ trợ khi đang vuốt nhanh
+    distanceWeakening: 0.75,   // gần head giảm lực để không lố
+
+    // chống rung
+    antiJitter: 0.58,
+
+    // snap vừa phải
+    snapStrength: 0.85,
+
+    // an toàn không trượt quá đầu
+    maxDelta: 12,
+    headBox: 0.9               // vùng "ổn định" để auto-fire
 };
 
+function lightAimAssist(delta) {
+
+    // lực nhẹ theo hướng đầu
+    let pullX = delta.x * CONFIG.lightAimForce;
+    let pullY = delta.y * CONFIG.lightAimForce;
+
+    // nếu drag nhanh → tăng phụ trợ
+    if (Math.abs(delta.x) > 10 || Math.abs(delta.y) > 10) {
+        pullX *= (1 + CONFIG.dragAssistBoost);
+        pullY *= (1 + CONFIG.dragAssistBoost);
+    }
+
+    // khi gần head → giảm lực để tránh trượt qua
+    if (Math.abs(delta.x) < 5 && Math.abs(delta.y) < 5) {
+        pullX *= CONFIG.distanceWeakening;
+        pullY *= CONFIG.distanceWeakening;
+    }
+
+    return Vec2(pullX, pullY);
+}
+
+
+// =====================
+
 // ===== AUTO-LOCK MAIN =====
-function autoLockHead(targetHead) {
-    if (!targetHead) return;
+function autoLockHead(head) {
+    if (!head) return;
 
-    var delta = vSub(targetHead, Crosshair);
+    // 1) tính Δ tâm → head
+    let delta = vSub(head, Crosshair);
 
-    // Clamp chống lố đầu
+    // 2) giới hạn để tránh lố đầu
     delta.x = Math.max(-CONFIG.maxDelta, Math.min(CONFIG.maxDelta, delta.x));
     delta.y = Math.max(-CONFIG.maxDelta, Math.min(CONFIG.maxDelta, delta.y));
 
-    // Kalman – fix rung khi FPS cao
-    var sx = kx.update(delta.x);
-    var sy = ky.update(delta.y);
+    // 3) Kalman chống rung FPS cao
+    let sx = kx.update(delta.x);
+    let sy = ky.update(delta.y);
 
-    // Snap vào head
-    SmoothedCrosshair = vAdd(
+    // 4) Light Aim Assist
+    let assist = lightAimAssist(delta);
+
+    // 5) tổng hợp lực (snap + assist + antiJitter)
+    Smooth = vAdd(
         Crosshair,
-        vMul(Vec2(sx, sy), CONFIG.snapStrength)
+        Vec2(
+            sx * CONFIG.snapStrength + assist.x * CONFIG.antiJitter,
+            sy * CONFIG.snapStrength + assist.y * CONFIG.antiJitter
+        )
     );
 
-    Crosshair = SmoothedCrosshair;
+    Crosshair = Smooth;
 
-    // Auto bắn khi head lock
-    if (Math.abs(sx) < CONFIG.headSize && Math.abs(sy) < CONFIG.headSize) {
-        // Shadowrocket trigger
-        if (typeof $trigger === "function") {
-            $trigger("tap");
-        }
+    // 6) auto-fire khi tâm nằm trong headbox
+    if (Math.abs(sx) < CONFIG.headBox && Math.abs(sy) < CONFIG.headBox) {
+        $trigger("tap");
     }
 }
 
