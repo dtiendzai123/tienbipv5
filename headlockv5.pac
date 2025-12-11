@@ -62,36 +62,96 @@ var DragHeadAntiShake = {
 var CameraStabilizerPAC = {
     enabled: true,
 
-    // Smoothing base
-    smoothingSpeed: 10.0,          // Hz (mặc định)
-    minSmoothingSpeed: 6.0,
-    maxSmoothingSpeed: 28.0,
+    // ===== BASE SMOOTHING =====
+    baseSmoothHz: 12.0,          // tần số làm mượt tiêu chuẩn
+    minSmoothHz: 6.0,            // chống lag FPS thấp
+    maxSmoothHz: 32.0,           // siêu mượt FPS cao
 
-    // Noise parameters
-    processNoise: 0.0008,
-    measurementNoise: 0.0022,
+    // ===== NOISE MODEL (Kalman-like) =====
+    processNoise: 0.00065,       // nhiễu chuyển động (Q)
+    measurementNoise: 0.0018,    // nhiễu đo lường (R)
 
-    // Frame clamp để không rung khi FPS cao
-    maxCorrection: 0.065,
+    // ===== CLAMP ANTI-RUNG =====
+    maxCorrection: 0.055,        // cắt biên độ anti-shake
+                                 // (giá thấp = ít rung hơn)
 
-    // Điều chỉnh theo FPS (True = tốt nhất)
-    adaptiveToFPS: true,
+    // ===== ADAPTIVE FPS =====
+    adaptiveFPS: true,           // tự scale smoothing theo FPS
 
-    // Giữ input người chơi mượt - không bị delay
-    inputResponsiveness: 0.82,
+    // ===== PLAYER INPUT PRIORITY =====
+    responsiveness: 0.88,        // càng cao càng giữ input thật
 
-    // Xuất ra để script ngoài đọc
-    getConfig: function () {
+    // ====================================
+    // CONFIG EXPORT
+    // ====================================
+    getConfig: function() {
         return {
             enabled: this.enabled,
-            smoothingSpeed: this.smoothingSpeed,
-            minSmoothingSpeed: this.minSmoothingSpeed,
-            maxSmoothingSpeed: this.maxSmoothingSpeed,
+
+            baseSmoothHz: this.baseSmoothHz,
+            minSmoothHz: this.minSmoothHz,
+            maxSmoothHz: this.maxSmoothHz,
+
             processNoise: this.processNoise,
             measurementNoise: this.measurementNoise,
+
             maxCorrection: this.maxCorrection,
-            adaptiveToFPS: this.adaptiveToFPS,
-            inputResponsiveness: this.inputResponsiveness
+            adaptiveFPS: this.adaptiveFPS,
+            responsiveness: this.responsiveness
+        };
+    },
+
+    // ====================================
+    // ADAPTIVE SMOOTHING CALC
+    // (Script ngoài gọi hàm này để lấy smoothing theo FPS)
+    // ====================================
+    getSmoothingFactor: function(dt) {
+        if (!this.adaptiveFPS) {
+            return 1.0 - (this.baseSmoothHz * dt);
+        }
+
+        // FPS hiện tại
+        let fps = 1.0 / dt;
+
+        // map FPS -> smoothing Hz
+        let hz = this.baseSmoothHz;
+
+        if (fps > 65)  hz += (fps - 65) * 0.12;
+        if (fps > 90)  hz += (fps - 90) * 0.08;
+        if (fps > 120) hz += (fps - 120) * 0.05;
+
+        // clamp
+        hz = Math.max(this.minSmoothHz, Math.min(this.maxSmoothHz, hz));
+
+        // convert → smoothing factor
+        return 1.0 - (hz * dt);
+    },
+
+    // ====================================
+    // MAIN STABILIZE FUNCTION
+    // (Gọi trong aimlock / camera update loop)
+    // ====================================
+    stabilize: function(prev, cur, dt) {
+        if (!this.enabled) return cur;
+
+        // Smooth dynamical factor
+        let sm = this.getSmoothingFactor(dt);
+
+        // Giảm tác động rung, tăng sự thật từ input
+        sm = sm * (1.0 - (1.0 - this.responsiveness));
+
+        // Correction delta
+        let dx = cur.x - prev.x;
+        let dy = cur.y - prev.y;
+
+        // Giới hạn correction tránh rung FPS cao
+        dx = Math.max(-this.maxCorrection, Math.min(this.maxCorrection, dx));
+        dy = Math.max(-this.maxCorrection, Math.min(this.maxCorrection, dy));
+
+        // Xuất kết quả đã làm mượt
+        return {
+            x: prev.x + dx * sm,
+            y: prev.y + dy * sm
         };
     }
 };
@@ -103,31 +163,83 @@ var CameraStabilizerPAC = {
 // CẤU HÌNH RECOIL SYSTEM (FULL)
 // -------------------------------
 var AntiRecoilStabilityConfig = {
-    VerticalRecoil_Suppression: 999,
-    HorizontalShake_Reduction: 999,
-    RealTimeGun_StabilityControl: 999,
-    DynamicRecoil_FeedbackMod: 999,
-    AdvancedShooting_Balance: 999,
-    InteractiveWeapon_Response: 999,
-    RealTimeCrosshair_Anchor: 999,
-    AutoRecoil_AdjustSystem: 999,
-    StabilizedFiringRate_Control: 999,
-    QuickRecoil_ResetOptions: 999,
-    SmartRecoil_Prediction: 999,
-    MicroRecoil_Smoothing: 999,
-    DynamicKickback_Compensation: 999,
-    BulletPattern_AutoCorrect: 999,
-    AntiDrift_RecoilControl: 999,
-    RecoilHeat_Response: 999,
-    WeaponType_AutoTune: 999,
-    BurstFire_Stabilizer: 999,
-    SmartCrosshair_CenterPull: 999,
-    MultiDirection_RecoilScaling: 999,
-    SensitivityRecoil_AutoAdjust: 999,
-    MotionTracking_RecoilSync: 999,
-    RapidFire_AntiClimb: 999,
-    AdaptiveGunKick_Recovery: 999,
-    WeaponGrip_ForceBalance: 999
+
+    enabled: true,
+
+    // ================================
+    // 1. RECOIL SUPPRESSION (CHÍNH)
+    // ================================
+    verticalControl: 1.00,         // 1.00 = xoá dọc hoàn toàn
+    horizontalControl: 1.00,       // 1.00 = xoá ngang hoàn toàn
+    microShakeControl: 0.95,       // chống rung nhỏ khi bắn
+
+    // ================================
+    // 2. PATTERN CONTROL (điều khiển mẫu giật)
+    // ================================
+    patternAutoCorrect: 0.90,      // khử mẫu giật chuẩn của súng
+    burstStabilizer: 0.85,         // kiểm soát trong burst-fire
+    rapidFireAntiClimb: 0.92,      // chống leo tâm khi spam đạn
+
+    // ================================
+    // 3. KICKBACK & STABILITY
+    // ================================
+    kickbackCompensation: 0.88,    // giảm lực giật trả ngược
+    adaptiveRecovery: 0.90,        // hồi tâm nhanh hơn
+    heatResponse: 0.75,            // giảm rung khi súng nóng
+
+    // ================================
+    // 4. CROSSHAIR CENTRIC STABILITY
+    // ================================
+    crosshairAnchor: 0.92,         // giữ tâm sát mục tiêu
+    smartCenterPull: 0.78,         // kéo tâm về giữa khi lệch
+    antiDriftControl: 0.85,        // chống drift tâm khi bắn lâu
+
+    // ================================
+    // 5. WEAPON SMART ADAPTATION
+    // ================================
+    weaponAutoTune: 1.0,           // tự nhận diện súng để điều chỉnh
+    multiDirectionScaling: 0.88,   // scale giật nhiều hướng
+    sensitivityAutoAdjust: 0.82,   // tự giảm nhạy khi bắn
+
+    // ================================
+    // 6. REAL TIME SYNC (nhạy drag)
+    // ================================
+    motionRecoilSync: 0.74,        // đồng bộ drag với recoil
+    interactiveGunResponse: 0.90,  // phản hồi mượt theo thao tác
+    realTimeStabilityCtrl: 0.95,   // giảm rung trong 1–3 frame đầu
+
+    // ================================
+    // 7. INTERNAL / EXPORT
+    // ================================
+    getConfig: function() {
+        return {
+            enabled: this.enabled,
+
+            verticalControl: this.verticalControl,
+            horizontalControl: this.horizontalControl,
+            microShakeControl: this.microShakeControl,
+
+            patternAutoCorrect: this.patternAutoCorrect,
+            burstStabilizer: this.burstStabilizer,
+            rapidFireAntiClimb: this.rapidFireAntiClimb,
+
+            kickbackCompensation: this.kickbackCompensation,
+            adaptiveRecovery: this.adaptiveRecovery,
+            heatResponse: this.heatResponse,
+
+            crosshairAnchor: this.crosshairAnchor,
+            smartCenterPull: this.smartCenterPull,
+            antiDriftControl: this.antiDriftControl,
+
+            weaponAutoTune: this.weaponAutoTune,
+            multiDirectionScaling: this.multiDirectionScaling,
+            sensitivityAutoAdjust: this.sensitivityAutoAdjust,
+
+            motionRecoilSync: this.motionRecoilSync,
+            interactiveGunResponse: this.interactiveGunResponse,
+            realTimeStabilityCtrl: this.realTimeStabilityCtrl
+        };
+    }
 };
 
 // -------------------------------
