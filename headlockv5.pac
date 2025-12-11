@@ -2571,6 +2571,85 @@ var AdvancedHeadAssist = {
         config: { boneOffset: { x: 0, y: 0.0, z: 0 }, prediction: true }
     };
 
+
+function Vec2(x, y) {
+    return { x: x || 0, y: y || 0 };
+}
+function vAdd(a, b) { return Vec2(a.x + b.x, a.y + b.y); }
+function vSub(a, b) { return Vec2(a.x - b.x, a.y - b.y); }
+function vMul(a, s) { return Vec2(a.x * s, a.y * s); }
+
+// ===== KALMAN FILTER (ANTI-RUNG) =====
+function Kalman() {
+    return {
+        q: 0.0008,
+        r: 0.05,
+        x: 0,
+        p: 1,
+        k: 0,
+        update: function(measure) {
+            this.k = this.p / (this.p + this.r);
+            this.x = this.x + this.k * (measure - this.x);
+            this.p = (1 - this.k) * this.p + this.q;
+            return this.x;
+        }
+    };
+}
+
+// Kalman instances
+var kx = Kalman();
+var ky = Kalman();
+
+// ===== CROSSHAIR STATE =====
+var Crosshair = Vec2(0, 0);
+var SmoothedCrosshair = Vec2(0, 0);
+
+// ===== HEADLOCK CONFIG =====
+var CONFIG = {
+    sensitivity: 1.35,
+    snapStrength: 0.92,
+    maxDelta: 16,         // chống lố đầu
+    headSize: 0.75,       // đảm bảo khóa đúng xương đầu
+    jitterReduction: 0.55 // fix rung FPS cao
+};
+
+// ===== AUTO-LOCK MAIN =====
+function autoLockHead(targetHead) {
+    if (!targetHead) return;
+
+    var delta = vSub(targetHead, Crosshair);
+
+    // Clamp chống lố đầu
+    delta.x = Math.max(-CONFIG.maxDelta, Math.min(CONFIG.maxDelta, delta.x));
+    delta.y = Math.max(-CONFIG.maxDelta, Math.min(CONFIG.maxDelta, delta.y));
+
+    // Kalman – fix rung khi FPS cao
+    var sx = kx.update(delta.x);
+    var sy = ky.update(delta.y);
+
+    // Snap vào head
+    SmoothedCrosshair = vAdd(
+        Crosshair,
+        vMul(Vec2(sx, sy), CONFIG.snapStrength)
+    );
+
+    Crosshair = SmoothedCrosshair;
+
+    // Auto bắn khi head lock
+    if (Math.abs(sx) < CONFIG.headSize && Math.abs(sy) < CONFIG.headSize) {
+        // Shadowrocket trigger
+        if (typeof $trigger === "function") {
+            $trigger("tap");
+        }
+    }
+}
+
+
+
+
+
+
+
 //
 //  ===== HOLD CROSSHAIR ON HEAD WHEN FIRE =====
 // ============================================
