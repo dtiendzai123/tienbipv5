@@ -813,38 +813,43 @@ var DefaultNeckAimAnchor = {
     Stickiness: "medium",        // độ bám vào cổ ở trạng thái idle
 };
 
+// =======================================================================
+// 🔥 HEAD TRACKING MODULE – CLEAN & OPTIMIZED VERSION
+// =======================================================================
+
 var HeadTracking = {
-    // ===== CORE LOCK =====
-    LockStrength: 2.0,           // lực lock tối đa
-    SnapSpeed: 2.0,             // tốc độ “bắt đầu” xoay về head
-    TrackingStickiness: 2.0,     // độ bám dính vào head
 
-    // ===== KHI ĐỊCH CHẠY NHANH =====
-    VelocityTrackingBoost: 2.0, // tăng bám theo tốc độ địch
-    VelocitySmoothing: 0.15,     // giảm dao động khi địch đổi hướng
+    // ===== CORE LOCKING =====
+    LockStrength: 2.0,
+    SnapSpeed: 2.0,
+    TrackingStickiness: 2.0,
 
-    // ===== KHI GẦN HEADBOX =====
-    MicroCorrection: 0.82,       // chỉnh nhỏ để không lệch tâm
-    MaxCorrectionAngle: 360.0,     // lớn hơn = dễ bám head khi chạy zigzag
+    // ===== VELOCITY REACTION (when enemy moves fast) =====
+    VelocityTrackingBoost: 2.0,
+    VelocitySmoothing: 0.15,
 
-    // ===== KHI NHẢY / AIR =====
+    // ===== MICRO CORRECTION =====
+    MicroCorrection: 0.82,
+    MaxCorrectionAngle: 360.0,
+
+    // ===== AIR / JUMP ASSIST =====
     AirPrecisionBoost: 1.0,
-    AirVerticalLead: 0.001,      // dự đoán độ rơi đầu
+    AirVerticalLead: 0.001,
 
-    // ===== KALMAN FILTER =====
-    KalmanFactor: 0.78,          // giữ tracking ổn định không rung
-    AntiJitter: 0.92,            // chống jitter khi địch đổi hướng
+    // ===== KALMAN + ANTI-JITTER =====
+    KalmanFactor: 0.78,
+    AntiJitter: 0.92,
 
-    // ===== TẦM XA =====
+    // ===== LONG RANGE =====
     LongRangeAssist: 2.0,
     LongRangeHeadBias: 2.0,
 
-    // ===== CHỐNG MẤT LOCK =====
-    LockRecoverySpeed: 1.0,      // mất lock 1 chút → kéo lại ngay
-    MaxLockDrift: 360.0,           // chênh lệch góc tối đa cho phép
-    DriftCorrectStrength: 1.0,  // kéo lại về head nếu lệch
+    // ===== LOCK RECOVERY =====
+    LockRecoverySpeed: 1.0,
+    MaxLockDrift: 360.0,
+    DriftCorrectStrength: 1.0,
 
-    // ===== OFFSET THEO ANIMATION =====
+    // ===== ANIMATION OFFSETS =====
     RunOffset: 0.0051,
     JumpOffset: 0.0083,
     SlideOffset: -0.0022,
@@ -852,52 +857,66 @@ var HeadTracking = {
 
     // ===== PREDICTION =====
     PredictionFactor: 2.0,
-    HeadLeadTime: 0.018,         // dự đoán 18ms trước
+    HeadLeadTime: 0.018,
 
-    // ===== CHỐNG OVERSHOOT =====
+    // ===== OVERSHOOT CONTROL =====
     OvershootProtection: 1.0,
-    Damping: 0.4,
+    Damping: 0.4
 };
+
+
+// =======================================================================
+// 🔥 SCREEN TOUCH SENSITIVITY MODULE — FULL REWRITE
+// =======================================================================
 
 var ScreenTouchSens = {
 
-    EnableScreenSensitivity: true,   // bật module nhạy màn + cảm ứng
-  BaseTouchScale: 12.0,               // siêu nhạy màn (tăng gấp ~12 lần)
-DynamicTouchBoost: 0.55,            // bứt tốc mạnh khi drag nhanh
-FingerSpeedThreshold: 0.0008,       // bắt tốc độ từ rất sớm ⇒ kích boost nhanh
+    // ===== TOUCH SENSITIVITY CONTROL =====
+    EnableScreenSensitivity: true,
+    BaseTouchScale: 12.0,
+    DynamicTouchBoost: 0.55,
+    FingerSpeedThreshold: 0.0008,
 
-PrecisionMicroControl: true,
-MicroControlStrength: 1.35,         // kiểm soát vi mô cực mạnh, triệt rung
+    // ===== MICRO AIM CONTROL =====
+    PrecisionMicroControl: true,
+    MicroControlStrength: 1.35,
 
-OvershootProtection: 1.0,           // chống vượt đầu ở mức tối đa
-OvershootDamping: 0.85,             // hãm gấp khi sắp vượt headbox
+    // ===== OVERSHOOT HANDLING =====
+    OvershootProtection: 1.0,
+    OvershootDamping: 0.85,
 
-DecelerationNearHead: 10.0,         // khi gần head → hãm cực mạnh để khóa đỉnh
-DecelerationDistance: 0.030,        // mở rộng vùng hãm để dễ dính head hơn
+    // ===== HEADBOX APPROACH CONTROL =====
+    DecelerationNearHead: 10.0,
+    DecelerationDistance: 0.030,
 
-FineTrackingAssist: 10.0,           // tracking siêu bám theo đầu di chuyển
-FineTrackingMaxAngle: 10.0           // tăng phạm vi kích hoạt tracking lên 5°
+    // ===== FINE TRACKING =====
+    FineTrackingAssist: 10.0,
+    FineTrackingMaxAngle: 10.0,
 
-
-    // --- Bộ phân tích chuyển động cảm ứng ---
+    // ===== INTERNAL STATE =====
     lastTouchX: 0,
     lastTouchY: 0,
     lastTouchTime: 0,
 
-    processTouch(x, y) {
+    // ===================================================================
+    // 📌 PROCESS TOUCH — PHÁT HIỆN TỐC ĐỘ NGÓN VÀ BOOST NHẠY MÀN
+    // ===================================================================
+    processTouch: function (x, y) {
+
         let now = Date.now();
         let dt = now - this.lastTouchTime;
         if (dt < 1) dt = 1;
 
         let dx = x - this.lastTouchX;
         let dy = y - this.lastTouchY;
-        let fingerSpeed = Math.sqrt(dx*dx + dy*dy) / dt;
+
+        let fingerSpeed = Math.sqrt(dx * dx + dy * dy) / dt;
 
         this.lastTouchX = x;
         this.lastTouchY = y;
         this.lastTouchTime = now;
 
-        // Tăng nhạy màn khi drag nhanh
+        // Dynamic screen boost
         let dynamicBoost = 1.0;
         if (fingerSpeed > this.FingerSpeedThreshold) {
             dynamicBoost += this.DynamicTouchBoost;
@@ -910,28 +929,30 @@ FineTrackingMaxAngle: 10.0           // tăng phạm vi kích hoạt tracking l�
         };
     },
 
-    // --- Bộ xử lý khi tâm gần headbox ---
-    applyNearHeadControl(angleDiff, distanceToHead) {
+    // ===================================================================
+    // 📌 APPLY NEAR HEADBOX CONTROL — GIẢM TỐC, CHỐNG VƯỢT, MICROCONTROL
+    // ===================================================================
+    applyNearHeadControl: function (angleDiff, distanceToHead) {
 
         let adjust = 1.0;
 
-        // Hãm tốc khi gần head
-        if (this.DecelerationNearHead && distanceToHead < this.DecelerationDistance) {
+        // Khi tiến sát HeadBox ⇒ Hãm mạnh
+        if (distanceToHead < this.DecelerationDistance) {
             adjust *= (1 - this.DecelerationNearHead);
         }
 
-        // Chống vượt head
-        if (this.OvershootProtection && angleDiff < 1.5) {
+        // Chống vượt head (overshoot)
+        if (angleDiff < 1.5) {
             adjust *= (1 - this.OvershootDamping);
         }
 
-        // Micro control — ổn định tâm
+        // Micro control — giữ tâm siêu ổn định
         if (this.PrecisionMicroControl && angleDiff < 2.0) {
             adjust *= (1 - this.MicroControlStrength * 0.3);
         }
 
-        // Tracking mượt
-        if (this.FineTrackingAssist && angleDiff <= this.FineTrackingMaxAngle) {
+        // Fine tracking — bám đầu mượt trong góc lên đến 10°
+        if (angleDiff <= this.FineTrackingMaxAngle) {
             adjust *= (1 + this.FineTrackingAssist * 0.15);
         }
 
@@ -944,105 +965,106 @@ var TouchSensSystem = {
     Enabled: true,
 
     // ============================
-    //  TOUCH SENS BOOST (NHẠY MÀN)
+    // TOUCH SENSITIVITY
     // ============================
-    BaseTouchSensitivity: 5.0,      // nhạy gốc – càng cao càng nhanh
-    FlickBoost: 5.35,               // tăng vận tốc flick nhanh (kéo mạnh)
-    MicroDragBoost: 1.12,           // nhạy tinh cho drag lên đầu
-    VerticalSensitivityBias: 0.0,  // giảm rung dọc, dễ kéo lên đầu
-    HorizontalSensitivityBias: 3.5,// tăng nhẹ ngang, tracking dễ hơn
+    BaseTouchSensitivity: 5.0,
+    FlickBoost: 5.35,
+    MicroDragBoost: 1.12,
+    VerticalSensitivityBias: 0.0,
+    HorizontalSensitivityBias: 3.5,
 
     // ============================
-    //  TOUCH RESPONSE (ĐỘ NHẠY PHẢN HỒI)
+    // TOUCH RESPONSE
     // ============================
-    TouchLatencyCompensation: -22,  // bù trễ phản hồi, âm = nhanh hơn
-    MultiTouchCorrection: true,     // sửa lỗi "kẹt cảm ứng" khi kéo bằng 2 ngón
-    TouchNoiseFilter: 0.92,         // lọc nhiễu cảm ứng (tay ướt, tay rung)
-    TouchJitterFix: 0.90,           // chống jitter khi drag chậm
-    StableFingerTracking: 0.88,     // giữ quỹ đạo tay ổn định
+    TouchLatencyCompensation: -22,
+    MultiTouchCorrection: true,
+    TouchNoiseFilter: 0.92,
+    TouchJitterFix: 0.90,
+    StableFingerTracking: 0.88,
 
     // ============================
-    //  DYNAMIC TOUCH BOOST (NHẠY BIẾN THIÊN)
+    // DYNAMIC TOUCH BOOST
     // ============================
     DynamicSensitivityEnabled: true,
-    DynamicBoostMin: 10.0,           // nhạy khi kéo chậm
-    DynamicBoostMax: 10.0,          // nhạy khi kéo mạnh
-    DynamicAccelerationCurve: 0.85, // đường cong tăng tốc cảm ứng
-    DynamicFlickThreshold: 0.008,   // nếu tốc độ > ngưỡng này → bật flick boost
+    DynamicBoostMin: 10.0,
+    DynamicBoostMax: 10.0,
+    DynamicAccelerationCurve: 0.85,
+    DynamicFlickThreshold: 0.008,
 
     // ============================
-    //  PRECISION TOUCH ENGINE (NHẠY CHUẨN HEADSHOT)
+    // PRECISION ENGINE (HEADSHOT)
     // ============================
-    PrecisionMicroControl: true,    
-    MicroControlStrength: 1.0,     // giảm dao động nhỏ khi nhắm đầu
-    OvershootProtection: 1.0,      // chống vượt quá đầu khi kéo nhanh
-    DecelerationNearHead: 0.0,     // giảm tốc khi tâm đến gần headbox
-    FineTrackingAssist: 0.0,       // tracking mượt theo đầu đang chạy
+    PrecisionMicroControl: true,
+    MicroControlStrength: 1.0,
+    OvershootProtection: 1.0,
+    DecelerationNearHead: 0.0,
+    FineTrackingAssist: 0.0,
 
     // ============================
-    //  TOUCH GRID OPTIMIZATION (BÙ MẠNG LƯỚI MÀN)
+    // TOUCH GRID OPTIMIZATION
     // ============================
     TouchPixelGridCompensation: true,
-    PixelGridSmoothFactor: 0.88,    // làm mượt các bước nhảy pixel
-    FingerPathPredict: 0.012,       // dự đoán hướng ngón tay di chuyển
-    TouchCurveLinearization: 0.95,  // giữ quỹ đạo drag không bị cong sai
+    PixelGridSmoothFactor: 0.88,
+    FingerPathPredict: 0.012,
+    TouchCurveLinearization: 0.95,
 
     // ============================
-    //  DEVICE ADAPT MODE (TỰ ĐỘNG TỐI ƯU THEO MÁY)
+    // DEVICE ADAPTATION
     // ============================
     DeviceAdaptiveMode: true,
-    ScreenSamplingRateBoost: 1.35,  // mô phỏng tần số cảm ứng cao hơn
-    TouchDecayFixer: 1.0,           // chống giảm nhạy sau vài phút bắn
-    PalmRejectionEnhancer: true,    // chống nhận nhầm lòng bàn tay
+    ScreenSamplingRateBoost: 1.35,
+    TouchDecayFixer: 1.0,
+    PalmRejectionEnhancer: true,
 
     // ============================
-    //  DEBUG / TUNING
+    // DEBUG
     // ============================
     DebugTouchLog: false,
     StabilizerLevel: "high",
-    CalibrationOffset: 0.00
+    CalibrationOffset: 0.0
 };
-
 var LightHeadDragAssist = {
 
     Enabled: true,
 
-    // ===== NHẸ TÂM NGẮM =====
-    DragLiftStrength: 999.0,      // lực nâng tâm lên đầu khi drag
-    VerticalAssist: 1.0,        // tăng độ nổi trục Y khi kéo
-    HorizontalEase: 1.0,        // làm nhẹ trục X -> drag không bị nặng
+    // ===== LIGHT AIM DRAG =====
+    DragLiftStrength: 999.0,
+    VerticalAssist: 1.0,
+    HorizontalEase: 1.0,
 
-    // ===== ƯU TIÊN ĐẦU =====
-    HeadBiasStrength: 1.0,      // tự kéo nhẹ về hướng bone_Head
-    MaxHeadBiasAngle: 360.0,       // chỉ chạy khi lệch đầu dưới 2.5°
+    // ===== HEAD PRIORITY =====
+    HeadBiasStrength: 1.0,
+    MaxHeadBiasAngle: 360.0,
 
-    // ===== CHỐNG TUỘT KHI DRAG =====
-    AntiSlipFactor: 1.0,        // chống tuột tâm khỏi đầu
-    MicroCorrection: 0.985,      // hiệu chỉnh siêu nhỏ
-    StabilitySmooth: 0.0,       // chống rung nhẹ khi kéo
+    // ===== ANTI-SLIP =====
+    AntiSlipFactor: 1.0,
+    MicroCorrection: 0.985,
+    StabilitySmooth: 0.0,
 
-    // ===== BONE DỮ LIỆU CHUẨN =====
+    // ===== BONE TRACKING =====
     BoneHeadOffsetTrackingLock: {
         x: -0.0456970781,
         y: -0.004478302,
         z: -0.0200432576
     },
 
-    // ===== TỰ NỔI KHI FIRE =====
-    FireLiftBoost: 1.0,         // khi bắn sẽ nâng tâm nhẹ lên vùng head
+    // ===== AUTO-LIFT ON FIRE =====
+    FireLiftBoost: 1.0,
 
-    // ===== CHỐNG OVERSHOOT =====
-    OvershootLimit: 1.0,        // hạn chế vượt quá đầu
-    OvershootDamping: 1.0,      // giảm lực khi vượt headbox
+    // ===== ANTI OVERSHOOT =====
+    OvershootLimit: 1.0,
+    OvershootDamping: 1.0,
 
-    // ===== KALMAN NHẸ =====
-    KalmanFactor: 0.0,          // làm mượt drag nhưng không khóa
+    // ===== KALMAN SOFT =====
+    KalmanFactor: 0.0
 };
-
 var HardLockSystem = {
+
     enabled: true,
 
-    // ===== CORE LOCK SETTINGS =====
+    // ============================
+    // CORE HARDLOCK CONFIG
+    // ============================
     coreLock: {
         snapSpeed: 1.0,
         hardLockStrength: 1.0,
@@ -1053,14 +1075,18 @@ var HardLockSystem = {
         kalmanFactor: 0.97
     },
 
-    // ===== TARGET WEIGHTS =====
+    // ============================
+    // TARGET WEIGHT
+    // ============================
     weights: {
         headWeight: 2.0,
-        neckWeight: 0.2,    // 10% of headWeight
-        chestWeight: 0.1    // 5% of headWeight
+        neckWeight: 0.2,
+        chestWeight: 0.1
     },
 
-    // ===== HEAD LOCK SYSTEMS =====
+    // ============================
+    // HEADLOCK MODE – HYPER
+    // ============================
     hyperHeadLock: {
         enabled: true,
         aimBone: "bone_Head",
@@ -1080,6 +1106,9 @@ var HardLockSystem = {
         scale: { x: 1.0, y: 1.0, z: 1.0 }
     },
 
+    // ============================
+    // HEADLOCK MODE – STABLE
+    // ============================
     stableHeadLock: {
         enabled: true,
         aimBone: "bone_Head",
@@ -1098,6 +1127,9 @@ var HardLockSystem = {
         scale: { x: 1.0, y: 1.0, z: 1.0 }
     },
 
+    // ============================
+    // INSTANT DRAG → HEAD
+    // ============================
     instantDragToHead: {
         enabled: true,
         targetBone: "bone_Head",
@@ -1114,6 +1146,9 @@ var HardLockSystem = {
         scale: { x: 1.0, y: 1.0, z: 1.0 }
     },
 
+    // ============================
+    // SMOOTH BODY DRAG → HEAD
+    // ============================
     autoAimLockHead: {
         enabled: true,
         aimBone: "bone_Head",
@@ -1133,6 +1168,9 @@ var HardLockSystem = {
         scale: { x: 1.0, y: 1.0, z: 1.0 }
     },
 
+    // ============================
+    // NECK LOCK MODE
+    // ============================
     aimNeckLock: {
         enabled: true,
         aimBone: "bone_Neck",
@@ -1150,6 +1188,9 @@ var HardLockSystem = {
         scale: { x: 1.0, y: 1.0, z: 1.0 }
     },
 
+    // ============================
+    // ANTI-RECOIL LOCK
+    // ============================
     antiRecoil: {
         enabled: true,
         targetBone: "bone_Head",
@@ -1162,7 +1203,9 @@ var HardLockSystem = {
         adaptToWeapon: true
     },
 
-    // ===== DYNAMIC HARDLOCK =====
+    // ============================
+    // DYNAMIC HARDLOCK (THEO TỐC ĐỘ ĐỊCH)
+    // ============================
     dynamicHardLock: {
         enabled: true,
         minSpeed: 0.2,
@@ -1171,7 +1214,9 @@ var HardLockSystem = {
         velocitySmoothing: 0.85
     },
 
-    // ===== DRAG LOCK =====
+    // ============================
+    // DRAG LOCK (HEAD)
+    // ============================
     dragLockHead: {
         enabled: true,
         maxDragSpeed: 1.0,
@@ -1183,7 +1228,9 @@ var HardLockSystem = {
         snapBackForce: 0.99
     },
 
-    // ===== AIR HEAD CORRECTOR =====
+    // ============================
+    // AIR HEAD PREDICTION
+    // ============================
     airHeadCorrector: {
         enabled: true,
         verticalBoost: 0.012,
@@ -1191,7 +1238,9 @@ var HardLockSystem = {
         gravityCompensation: 0.95
     },
 
-    // ===== RECOIL & SMOOTH BLEND =====
+    // ============================
+    // SMOOTH RECOIL BLEND
+    // ============================
     ultraSmoothRecoilBlend: {
         enabled: true,
         recoilNeutralize: 1.0,
@@ -1200,7 +1249,9 @@ var HardLockSystem = {
         instantRecovery: 0.0
     },
 
-    // ===== ROTATION-AWARE HEAD OFFSET =====
+    // ============================
+    // ROTATION-AWARE OFFSET
+    // ============================
     rotationAwareHeadOffset: {
         enabled: true,
         baseOffset: { x: 0.0, y: 0.025, z: 0.0 },
@@ -1209,7 +1260,9 @@ var HardLockSystem = {
         maxPitchOffset: 0.022
     },
 
-    // ===== MOTION PREDICTOR =====
+    // ============================
+    // ANIMATION PREDICTOR
+    // ============================
     animationMotionPredictor: {
         enabled: true,
         runBoost: 0.015,
@@ -1219,7 +1272,9 @@ var HardLockSystem = {
         predictionFactor: 0.012
     },
 
-    // ===== ULTIMATE LOCK RESOLVER =====
+    // ============================
+    // LOCK RESOLVER
+    // ============================
     ultimateLockResolver: {
         enabled: true,
         maxDrift: 0.085,
@@ -1229,11 +1284,14 @@ var HardLockSystem = {
         historyFrames: 5
     },
 
-    // ===== UTILITY =====
+    // ============================
+    // UTILITY
+    // ============================
     autoShotHead: { autoHeadshot: true, aimListextension: true },
     fixLagBoost: { fixResourceTask: true },
     closeLauncherRestore: { closeLauncher: true, forceRestore: true }
 };
+
 
 // ====== SYSTEM & PERFORMANCE OPTIMIZATION ======
 
@@ -1574,124 +1632,189 @@ var SystemOptimizer = {
 };
 
 var AimbotConfig = {
-        Enabled: true,
-        AimMode: "HitboxLock",
-        Sensitivity: "High",
-        Smoothing: 0.85,
-        Prediction: "Kalman",
-        PredictionStrength: 1.0,
-        LockOn: true,
-        LockStrength: 1.0,
-        AimFOV: 360,
-// ====== SHOOT EXACTLY (BẮN CHÍNH XÁC TUYỆT ĐỐI) ======
-ShootExactlyEnabled: true,               // Bật chế độ bắn chuẩn xác
-ExactHitboxLock: true,                   // Khoá đúng hitbox, không lệch pixel
-ExactHitboxTolerance: 0.00095,           // Độ lệch tối đa cho phép (càng thấp càng chính xác)
-FramePerfectTrigger: true,               // Bắn đúng frame khi tâm vào đầu
-TriggerPrecision: 0.000001,              // Ngưỡng xác nhận 100% vào hitbox
-NoOvershootAim: true,                    // Ngăn vượt qua đầu/chest
-MicroAdjustStrength: 0.95,               // Điều chỉnh vi mô để khớp hitbox
-AntiSlideAim: true,                      // Không bị "trượt mục tiêu"
-HitConfirmFilter: true,                  // Chỉ bắn khi xác nhận hitbox trùng 100%
-PixelPerfectHeadAlign: true,             // Căn chỉnh từng pixel vào tâm đầu
-SubPixelTracking: true,                  // Theo dõi sub‑pixel (siêu nhỏ)
-AutoFireWhenExact: true,                 // Chỉ bắn khi đạt độ chính xác cao
-ExactFireDelay: 0.00001,                 // Thời gian bắn siêu nhỏ (khung hình)
-ExactTargetBone: "bone_Head",            // Xác định bắn chính xác vào đầu
-ExactLockVelocityComp: true,             // Tính chuyển động trước khi bắn
-ExactDistanceCompensation: true,         // Bù khoảng cách theo thời gian thực
-StabilityBoostOnFire: 1.25,              // Giảm rung lúc bắn
-RecoilFreezeOnShot: true,                // Đóng băng recoil đúng thời điểm bắn
-RecoilReturnToZero: true,                // Trả tâm về chuẩn sau khi bắn
-ExactAngleCorrection: 0.0000001,         // Chỉnh góc siêu nhỏ
-ExactSnapCurve: 0.975,                   // Đường cong snap phục vụ chính xác
-BulletTravelPrediction: true,            // Dự đoán đạn theo tốc độ di chuyển
-HitboxLagCompensation: true,             // Bù trễ hitbox của server
-ServerTickAlignment: true,               // Đồng bộ theo tick server
-FireSyncToFrameRate: true,               // Đồng bộ tốc độ bắn theo FPS
-ExactModeLevel: 3,                        // 1 = normal, 2 = advanced, 3 = perfect mode
 
-        EnableRealtimeEnemyTracking: true,
-        RealtimeTrackingInterval: 0.001,
-        MultiEnemyTracking: true,
-        PredictEnemyMovement: true,
-        PredictivePathCorrection: true,
-        PredictiveSmoothing: 0.90,
-        EnableDynamicFOV: true,
-        FOVAngle: 90,
-        MaxLockDistance: 999.0,
-        ReactionTime: 0.001,
-        AvoidObstacles: true,
-        RetreatWhenBlocked: true,
+    // ===========================
+    //       CORE AIMBOT
+    // ===========================
+    Enabled: true,
+    AimMode: "HitboxLock",
+    Sensitivity: "High",
+    Smoothing: 0.85,
 
-        LockAimToEnemy: true,
-        LockToHitbox: true,
-        EnableAutoFire: true,
-        AutoFireDelay: 0.020,
-        AutoFireOnHeadLock: true,
-        AutoFireSafeMode: false,
+    // --- Prediction ---
+    Prediction: "Kalman",
+    PredictionStrength: 1.0,
 
-        HeadWeight: 2.0,
-        NeckWeight: 1.2,
-        ChestWeight: 0.8,
-        PelvisWeight: 0.5,
-        UseSmartZoneSwitch: true,
-        PreferClosestHitbox: true,
+    // --- Lock ---
+    LockOn: true,
+    LockStrength: 1.0,
+    AimFOV: 360,
 
-        AdaptiveAimSensitivity: true,
-      AimSensitivityHead: 1.0,
-        AimSensitivityNeck: 9.0,
-        AimSensitivityChest: 40.0,
-        AimSensitivityPelvis: 50.55,
-        HighSpeedTargetBoost: 100.25,
-        CloseRangeSensitivityBoost: 100.9,
 
-        EnableAdvancedEnemyTactics: true,
-        EnemyAwarenessLevel: 0.85,
-        PredictiveMovement: 1.0,
-        AggressionMultiplier: 1.20,
-        UseCoverEffectively: true,
-        EvadeProjectiles: true,
-        FlankPlayer: 0.70,
-        PrioritizeHeadshot: true,
-        TeamCoordination: true,
-        AdaptiveDifficulty: true,
-        AmbushProbability: 0.40,
-        RetreatThreshold: 0.25,
-        MaxPursuitDistance: 10.0,
+    // ======================================================
+    //        SHOOT EXACTLY SYSTEM (BẮN CHÍNH XÁC TUYỆT ĐỐI)
+    // ======================================================
+    ShootExactlyEnabled: true,            // Bật toàn bộ hệ thống bắn chính xác
+    ExactHitboxLock: true,                // Khoá đúng hitbox
+    ExactHitboxTolerance: 0.00095,        // Độ lệch tối đa
+    FramePerfectTrigger: true,            // Bắn đúng frame chuẩn
+    TriggerPrecision: 0.000001,           // Mức xác thực 100%
+    NoOvershootAim: true,                 // Không vượt head/chest
+    MicroAdjustStrength: 0.95,            // Chỉnh vi mô
+    AntiSlideAim: true,                   // Không trượt mục tiêu
+    HitConfirmFilter: true,               // Xác nhận trúng hitbox
+    PixelPerfectHeadAlign: true,          // Align từng pixel
+    SubPixelTracking: true,               // Tracking sub-pixel
 
-        TrackEnemyHead: true,
-        TrackEnemyNeck: true,
-        TrackEnemyChest: true,
-        TrackEnemyRotation: true,
-        TrackEnemyVelocity: true,
-        TrackCameraRelative: true,
-        SnapToBoneAngle: 360.0,
-        RotationLockStrength: 999.0,
+    AutoFireWhenExact: true,              // Bắn khi đạt chuẩn
+    ExactFireDelay: 0.00001,              // Delay siêu nhỏ
+    ExactTargetBone: "bone_Head",         // Luôn bắn đầu
 
-        UseKalmanFilter: true,
-        KalmanPositionFactor: 0.85,
-        KalmanVelocityFactor: 0.88,
-        NoiseReductionLevel: 0.65,
-        JitterFixer: true,
-        SmoothTracking: true,
+    ExactLockVelocityComp: true,          // Bù tốc độ địch
+    ExactDistanceCompensation: true,      // Bù khoảng cách
+    StabilityBoostOnFire: 1.25,           // Giảm rung khi bắn
 
-        EnableDynamicGameBehavior: true,
-        DynamicAimAdjustment: true,
-        DynamicFireRate: true,
-        AdaptiveLockPriority: true,
-        ThreatAssessmentLevel: 0.85,
-        CloseRangeBehaviorBoost: 1.20,
-        LongRangeBehaviorPenalty: 0.75,
-        LowHealthEnemyFocus: true,
-        MultiTargetDistribution: true,
-        DynamicFOVScaling: true,
+    RecoilFreezeOnShot: true,             // Đóng băng recoil
+    RecoilReturnToZero: true,             // Trả tâm về trục
 
-        EnableDebugLogs: false,
-        LogRealtimeData: false,
-        ShowTargetFOV: false,
-        ShowEnemyVectors: false
-    };
+    ExactAngleCorrection: 0.0000001,      // Chỉnh góc siêu nhỏ
+    ExactSnapCurve: 0.975,                // Snap cong mềm
+
+    BulletTravelPrediction: true,         // Dự đoán đường đạn
+    HitboxLagCompensation: true,          // Bù trễ hitbox
+    ServerTickAlignment: true,            // Đồng bộ tick
+
+    FireSyncToFrameRate: true,            // Bắn theo FPS
+    ExactModeLevel: 3,                    // Perfect Mode
+
+
+    // ===========================
+    //     REAL-TIME TRACKING
+    // ===========================
+    EnableRealtimeEnemyTracking: true,
+    RealtimeTrackingInterval: 0.001,
+
+    MultiEnemyTracking: true,
+    PredictEnemyMovement: true,
+    PredictivePathCorrection: true,
+    PredictiveSmoothing: 0.90,
+
+    EnableDynamicFOV: true,
+    FOVAngle: 90,
+    MaxLockDistance: 999.0,
+    ReactionTime: 0.001,
+
+    AvoidObstacles: true,
+    RetreatWhenBlocked: true,
+
+
+    // ===========================
+    //       AUTO FIRE MODULE
+    // ===========================
+    LockAimToEnemy: true,
+    LockToHitbox: true,
+    EnableAutoFire: true,
+    AutoFireDelay: 0.020,
+    AutoFireOnHeadLock: true,
+    AutoFireSafeMode: false,
+
+
+    // ===========================
+    //        HITBOX WEIGHTS
+    // ===========================
+    HeadWeight: 2.0,
+    NeckWeight: 1.2,
+    ChestWeight: 0.8,
+    PelvisWeight: 0.5,
+
+    UseSmartZoneSwitch: true,
+    PreferClosestHitbox: true,
+
+
+    // ===========================
+    //    ADAPTIVE AIM SENSITIVITY
+    // ===========================
+    AdaptiveAimSensitivity: true,
+    AimSensitivityHead: 1.0,
+    AimSensitivityNeck: 9.0,
+    AimSensitivityChest: 40.0,
+    AimSensitivityPelvis: 50.55,
+
+    HighSpeedTargetBoost: 100.25,
+    CloseRangeSensitivityBoost: 100.9,
+
+
+    // ===========================
+    //      ADVANCED ENEMY AI
+    // ===========================
+    EnableAdvancedEnemyTactics: true,
+    EnemyAwarenessLevel: 0.85,
+    PredictiveMovement: 1.0,
+    AggressionMultiplier: 1.20,
+
+    UseCoverEffectively: true,
+    EvadeProjectiles: true,
+    FlankPlayer: 0.70,
+
+    PrioritizeHeadshot: true,
+    TeamCoordination: true,
+    AdaptiveDifficulty: true,
+
+    AmbushProbability: 0.40,
+    RetreatThreshold: 0.25,
+    MaxPursuitDistance: 10.0,
+
+
+    // ===========================
+    //        TRACKING TARGET
+    // ===========================
+    TrackEnemyHead: true,
+    TrackEnemyNeck: true,
+    TrackEnemyChest: true,
+    TrackEnemyRotation: true,
+    TrackEnemyVelocity: true,
+    TrackCameraRelative: true,
+
+    SnapToBoneAngle: 360.0,
+    RotationLockStrength: 999.0,
+
+
+    // ===========================
+    //       KALMAN SMOOTHING
+    // ===========================
+    UseKalmanFilter: true,
+    KalmanPositionFactor: 0.85,
+    KalmanVelocityFactor: 0.88,
+    NoiseReductionLevel: 0.65,
+    JitterFixer: true,
+    SmoothTracking: true,
+
+
+    // ===========================
+    //     DYNAMIC BEHAVIOR
+    // ===========================
+    EnableDynamicGameBehavior: true,
+    DynamicAimAdjustment: true,
+    DynamicFireRate: true,
+    AdaptiveLockPriority: true,
+
+    ThreatAssessmentLevel: 0.85,
+    CloseRangeBehaviorBoost: 1.20,
+    LongRangeBehaviorPenalty: 0.75,
+    LowHealthEnemyFocus: true,
+
+    MultiTargetDistribution: true,
+    DynamicFOVScaling: true,
+
+
+    // ===========================
+    //        DEBUG
+    // ===========================
+    EnableDebugLogs: false,
+    LogRealtimeData: false,
+    ShowTargetFOV: false,
+    ShowEnemyVectors: false
+};
    var config = {
         AutoTrackHead: true,
         BuffMultiplier: 3,
