@@ -3130,8 +3130,8 @@ var CONFIG = {
     maxDelta: 16,         // chống lố đầu
     headSize: 0.75,       // đảm bảo khóa đúng xương đầu
     jitterReduction: 0.55 // fix rung FPS cao
-lightAimForce: 0.25,       // càng cao càng hút nhẹ vào đầu
-    dragAssistBoost: 0.16,     // phụ trợ khi đang vuốt nhanh
+lightAimForce: 1.0,       // càng cao càng hút nhẹ vào đầu
+    dragAssistBoost: 1.16,     // phụ trợ khi đang vuốt nhanh
     distanceWeakening: 0.75,   // gần head giảm lực để không lố
 
     // chống rung
