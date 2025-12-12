@@ -3085,37 +3085,67 @@ var IgnoreAimBones = [
         targetable: false
     }
 ];
-function isBoneIgnored(boneName, boneHash) {
-    for (var i = 0; i < IgnoreAimBones.length; i++) {
-        var b = IgnoreAimBones[i];
+//============================================
+// SMART TARGET BONE FILTER
+// Auto chọn bone tốt nhất để lock
+//============================================
+function filterTargetBones(target) {
+    if (!target || !target.bones) return target;
 
-        // Ưu tiên so sánh hash vì game dùng hash để xác định bone
-        if (boneHash === b.hash) return true;
+    var result = [];
 
-        // Dự phòng: so sánh tên
-        if (boneName && boneName === b.name) return true;
-    }
-    return false;
-}
-function filterTargetBones(targetData) {
-    if (!targetData || !targetData.bones) return targetData;
+    for (var i = 0; i < target.bones.length; i++) {
+        var b = target.bones[i];
 
-    var filtered = [];
-    for (var i = 0; i < targetData.bones.length; i++) {
-        var b = targetData.bones[i];
-
+        // Bỏ bone bị ignore hoàn toàn
         if (!isBoneIgnored(b.name, b.hash)) {
-            filtered.push(b);
+            result.push(b);
         }
     }
 
-    // Nếu bị ignore hết → fallback dùng head
-    if (filtered.length === 0 && targetData.head) {
-        filtered.push(targetData.head);
+    //-----------------------------------------
+    // Nếu mất hết bone → fallback
+    //-----------------------------------------
+    if (result.length === 0) {
+        // Ưu tiên head
+        if (target.head) {
+            result.push(target.head);
+            return target;
+        }
+
+        // Fallback cuối: spine (đỡ mất mục tiêu)
+        if (target.spine) {
+            result.push(target.spine);
+        }
     }
 
-    targetData.bones = filtered;
-    return targetData;
+    //-----------------------------------------
+    // SMART BONE DECISION (siêu mượt)
+    //-----------------------------------------
+
+    // Nếu enemy chạy → lock vào NECK để dễ kéo lên HEAD
+    if (target.velocity && target.velocity > 0.35) {
+        if (target.neck) {
+            result = [target.neck];
+        }
+    }
+
+    // Nếu enemy đứng yên → lock thẳng HEAD
+    if (target.velocity && target.velocity < 0.15) {
+        if (target.head) {
+            result = [target.head];
+        }
+    }
+
+    // Nếu enemy nhảy – lag – teleport
+    if (target.state === "air" || target.isJumping === true) {
+        if (target.spine) {
+            result = [target.spine];
+        }
+    }
+
+    target.bones = result;
+    return target;
 }
 // =============================
 // TRANSFORM DATA (converted for PAC)
