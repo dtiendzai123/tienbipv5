@@ -1815,34 +1815,56 @@ ExactModeLevel: 3,                        // 1 = normal, 2 = advanced, 3 = perfe
   var antiJitterFilter = j => j * 0.003;
 
 var GamePackages = {
-  GamePackage1: "com.dts.freefireth",
-  GamePackage2: "com.dts.freefiremax"
+    FreeFire: {
+        name: "Free Fire",
+        package: "com.dts.freefireth"
+    },
+
+    FreeFireMAX: {
+        name: "Free Fire MAX",
+        package: "com.dts.freefiremax"
+    },
+
+    // Hàm kiểm tra nhanh
+    isSupported: function(pkg) {
+        return (
+            pkg === this.FreeFire.package ||
+            pkg === this.FreeFireMAX.package
+        );
+    }
 };
 // =============================================================
 //  AIMBOT_CD (có Kalman Lite) – phiên bản PAC-safe
 // =============================================================
 var AIMBOT_CD = {
 
-    Vec3: function (x, y, z) { 
-        return { x: x || 0, y: y || 0, z: z || 0 }; 
+    // =========================
+    // VECTOR UTILS – CHUẨN HOÁ
+    // =========================
+    Vec3: function (x, y, z) {
+        return { x: x || 0, y: y || 0, z: z || 0 };
     },
 
-    add: function (a, b) { 
-        return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; 
+    add: function (a, b) {
+        return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
     },
 
-    sub: function (a, b) { 
-        return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; 
+    sub: function (a, b) {
+        return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
     },
 
-    mul: function (a, m) { 
-        return { x: a.x * m, y: a.y * m, z: a.z * m }; 
+    mul: function (v, m) {
+        return { x: v.x * m, y: v.y * m, z: v.z * m };
     },
 
+    // =========================
+    //  KALMAN FILTER LITE 2.0
+    //  (ỔN ĐỊNH CHO 60–120 FPS)
+    // =========================
     KalmanLite: function () {
         return {
-            q: 0.002,
-            r: 0.03,
+            q: 0.0015,   // noise thấp hơn → mượt hơn
+            r: 0.025,    // đo nhiễu nhẹ
             x: 0,
             p: 1,
             k: 0,
@@ -1850,7 +1872,7 @@ var AIMBOT_CD = {
                 this.p += this.q;
                 this.k = this.p / (this.p + this.r);
                 this.x = this.x + this.k * (m - this.x);
-                this.p = this.p * (1 - this.k);
+                this.p = (1 - this.k) * this.p;
                 return this.x;
             }
         };
@@ -1860,95 +1882,141 @@ var AIMBOT_CD = {
     KY: null,
     KZ: null,
 
+    // ================
+    //  INIT SYSTEM
+    // ================
     Init: function () {
         this.KX = this.KalmanLite();
         this.KY = this.KalmanLite();
         this.KZ = this.KalmanLite();
     },
 
+    // ====================
+    // CONFIG NÂNG CẤP 2.0
+    // ====================
     Config: {
-        ReactionTime: 1,
-        RealTimeMovementSync: 1,
-        SmartTapFire: 1,
-        LowDragFlick: 1,
-        FeatherTouchAim: 1,
-        AutoFocusAssist: 1,
-        DynamicFlowControl: 1,
-        FastAimLockOn: 1,
-        MinimalWeightTuning: 1,
-        QuickLightReset: 1,
+        ReactionTime: 1.0,
+        RealTimeMovementSync: 1.0,
+        SmartTapFire: 1.0,
+        LowDragFlick: 1.0,
+        FeatherTouchAim: 1.0,
+        AutoFocusAssist: 1.0,
+        DynamicFlowControl: 1.0,
+        FastAimLockOn: 1.0,
+        MinimalWeightTuning: 1.0,
+        QuickLightReset: 1.0,
 
-        RealTimeSensitivityAdjust: 1,
-        DynamicTouchScaling: 1,
-        CrosshairFluidity: 1,
-        InteractiveSensitivity: 1,
-        CustomScopeSensitivity: 1,
-        PrecisionDragSpeed: 1,
-        ZoomSensitivity: 1,
-        MotionSensitivityBoost: 1,
-        SmartGyroCalib: 1,
-        QuickSensitivityReset: 1
+        RealTimeSensitivityAdjust: 1.0,
+        DynamicTouchScaling: 1.0,
+        CrosshairFluidity: 1.0,
+        InteractiveSensitivity: 1.0,
+        CustomScopeSensitivity: 1.0,
+        PrecisionDragSpeed: 1.0,
+        ZoomSensitivity: 1.0,
+        MotionSensitivityBoost: 1.0,
+        SmartGyroCalib: 1.0,
+        QuickSensitivityReset: 1.0
     },
 
+    // ==========================================
+    //  HANDLE HEAD POSITION + KALMAN + TWEAKERS
+    // ==========================================
     ComputeLock: function (enemy) {
 
-        if (!enemy || !enemy.head) return this.Vec3(0,0,0);
+        if (!enemy || !enemy.head)
+            return this.Vec3(0, 0, 0);
 
-        var pos = enemy.head;
+        var h = enemy.head;
 
-        var sx = this.KX.update(pos.x);
-        var sy = this.KY.update(pos.y);
-        var sz = this.KZ.update(pos.z);
+        // Lọc nhiễu 3 trục
+        var fx = this.KX.update(h.x);
+        var fy = this.KY.update(h.y);
+        var fz = this.KZ.update(h.z);
 
-        var smooth = this.Vec3(sx, sy, sz);
+        var out = this.Vec3(fx, fy, fz);
 
-        if (this.Config.FeatherTouchAim === 1)
-            smooth = this.mul(smooth, 1.02);
+        // ===================================
+        // FEATHER TOUCH AIM – nhẹ tâm ngắm
+        // ===================================
+        if (this.Config.FeatherTouchAim === 1) {
+            out.x += (h.x - fx) * 0.02;
+            out.y += (h.y - fy) * 0.02;
+        }
 
-        if (this.Config.FastAimLockOn === 1)
-            smooth.y = smooth.y + 0.004;
+        // ============================
+        // FAST AIM LOCK – KHÓA MẶC ĐỊNH
+        // ============================
+        if (this.Config.FastAimLockOn === 1) {
+            out.y += 0.0035;   // nâng nhẹ để tránh lệch đầu khi spam đạn
+        }
 
-        return smooth;
+        return out;
     },
 
+    // ====================
+    //  PUBLIC ENTRY POINT
+    // ====================
     CD_AIM: function (enemyData) {
         if (!this.KX) this.Init();
         if (!enemyData) return null;
 
-        var out = null;
-        out = this.ComputeLock(enemyData);
-
-        return out;
+        return this.ComputeLock(enemyData);
     }
 };
-
 
 // =============================================================
 //  UltraCD – siêu dính đầu
 // =============================================================
 var UltraCD = {
 
-    Vec3: function (x, y, z) { return { x: x, y: y, z: z }; },
+    Vec3: function (x, y, z) {
+        return { x: x, y: y, z: z };
+    },
 
-    CD_Strength: 1.0,
-    CD_Gravity: 1.0,
-    CD_AutoLift: 1.0,
-    CD_Stickiness: 1.0,
-    CD_VerticalFix: 1.0,
-    CD_HorizontalFix: 1.0,
-    CD_AngleLimit: 360.0,
-    CD_Predict: 1.0,
+    // ====== CẤU HÌNH ỔN ĐỊNH ======
+    CD_Strength:      1.0,   // lực aim chung
+    CD_Gravity:       1.0,   // giảm tụt tâm (anti-gravity)
+    CD_AutoLift:      1.0,   // nâng nhẹ đầu (auto head lift)
+    CD_Stickiness:    1.0,   // bám mục tiêu
+    CD_VerticalFix:   1.0,   // fix dọc
+    CD_HorizontalFix: 1.0,   // fix ngang
+    CD_AngleLimit:   360.0,  // giới hạn góc anti–giật
+    CD_Predict:        1.0,   // dự đoán dịch chuyển đầu
 
+    // ====== HỆ THỐNG ULTRA CORRECTION ======
     UltraCD_AIM: function (enemy) {
-        if (!enemy || !enemy.head) return this.Vec3(0,0,0);
+
+        if (!enemy || !enemy.head) 
+            return this.Vec3(0, 0, 0);
 
         var h = enemy.head;
 
-        h.x = h.x * this.CD_Strength;
-        h.y = h.y * (this.CD_Strength + this.CD_AutoLift);
-        h.z = h.z * this.CD_Strength;
+        // ====== KHÔNG NHÂN TOẠ ĐỘ (TRÁNH GIÃN VECTOR) ======
+        // Tạo offset thay vì phá vector gốc
+        var offX = (this.CD_Strength * this.CD_HorizontalFix) * 0.001;
+        var offY = (this.CD_Strength * this.CD_VerticalFix) * 0.001;
 
-        return h;
+        // nâng đầu + chống tụt
+        offY += (this.CD_AutoLift * 0.001);
+        offY -= (this.CD_Gravity  * 0.001);
+
+        // ====== ÁP OFFSET AN TOÀN ======
+        var newX = h.x + offX;
+        var newY = h.y + offY;
+        var newZ = h.z; // không phá trục Z để aim không lệch xa
+
+        // ====== TÍNH TOÁN PREDICT ======
+        if (enemy.velocity && this.CD_Predict > 0) {
+            newX += enemy.velocity.x * 0.002 * this.CD_Predict;
+            newY += enemy.velocity.y * 0.002 * this.CD_Predict;
+            newZ += enemy.velocity.z * 0.002 * this.CD_Predict;
+        }
+
+        // ====== GIỚI HẠN GÓC CHỐNG GIẬT ======
+        if (Math.abs(newX - h.x) > this.CD_AngleLimit * 0.001) newX = h.x;
+        if (Math.abs(newY - h.y) > this.CD_AngleLimit * 0.001) newY = h.y;
+
+        return this.Vec3(newX, newY, newZ);
     }
 };
 
@@ -1959,25 +2027,36 @@ var UltraCD = {
 var RealTimeAIM = {
 
     lastPos: { x: 0, y: 0, z: 0 },
-    smooth: 0.90,
-    snap: 99.0,
 
-    update: function (head) {
+    // Làm mượt chuyển động đầu (anti-shake)
+    smoothFactor: 0.90,
 
-        var dx = head.x - this.lastPos.x;
-        var dy = head.y - this.lastPos.y;
-        var dz = head.z - this.lastPos.z;
+    // Độ snap nâng tâm (fix tụt tâm – hỗ trợ kéo vào đầu)
+    snapStrength: 0.0,
 
-        head.x = this.lastPos.x + dx * this.smooth;
-        head.y = this.lastPos.y + dy * this.smooth;
-        head.z = this.lastPos.z + dz * this.smooth;
+    update: function(head) {
+        // Vị trí hiện tại
+        var lx = this.lastPos.x;
+        var ly = this.lastPos.y;
+        var lz = this.lastPos.z;
 
-        head.y = head.y + this.snap;
-        head.x = head.x * (1 + this.snap * 0.2);
+        // Sai lệch giữa frame trước và hiện tại
+        var dx = head.x - lx;
+        var dy = head.y - ly;
+        var dz = head.z - lz;
 
-        this.lastPos = { x: head.x, y: head.y, z: head.z };
+        // Smooth (lọc rung)
+        var sx = lx + dx * this.smoothFactor;
+        var sy = ly + dy * this.smoothFactor;
+        var sz = lz + dz * this.smoothFactor;
 
-        return head;
+        // Snap dọc trục Y (nhẹ – không giật)
+        sy += this.snapStrength;
+
+        // Cập nhật vị trí cuối
+        this.lastPos = { x: sx, y: sy, z: sz };
+
+        return { x: sx, y: sy, z: sz };
     }
 };
 //
@@ -2003,22 +2082,33 @@ var HeadLockAim = {
 var NoOverHeadDrag = {
     enabled: true,
     headBone: "bone_Head",
+
+    // Giới hạn không cho vượt quá đầu
     clampYOffset: 0.0,
 
+    // Offset & rotation nếu engine cần
     boneOffset: { x: -0.0456970781, y: -0.004478302, z: -0.0200432576 },
     rotationOffset: { x: 0.0258174837, y: -0.08611039, z: -0.1402113, w: 0.9860321 },
     scale: { x: 1.0, y: 1.0, z: 1.0 },
 
+    // Hệ số làm mượt (anti–jerk)
+    smoothFactor: 0.35,
+
     apply: function(player, enemy) {
         if (!this.enabled || !enemy || !enemy.isAlive) return;
 
-        var aimPos = player.crosshair.position;
+        var aimPos  = player.crosshair.position;
         var headPos = enemy.getBonePosition(this.headBone);
 
-        if (aimPos.y > headPos.y + this.clampYOffset) {
+        var maxY = headPos.y + this.clampYOffset;
+
+        // Nếu vượt Y đầu → clamp + smooth để không giật
+        if (aimPos.y > maxY) {
+            var newY = aimPos.y + (maxY - aimPos.y) * this.smoothFactor;
+
             player.crosshair.position = {
-                x: aimPos.x,
-                y: headPos.y + this.clampYOffset,
+                x: aimPos.x,  // Không đụng X/Z → giữ drag tự nhiên
+                y: newY,
                 z: aimPos.z
             };
         }
@@ -2028,47 +2118,114 @@ var NoOverHeadDrag = {
 //
 //  ------ 2. DragHeadLockStabilizer ------
 //
+//=============================================================
+//  DRAG HEADLOCK STABILIZER – ULTRA STABLE VERSION
+//=============================================================
+
 var DragHeadLockStabilizer = {
+
     enabled: true,
     headBone: "bone_Head",
 
-    boneOffset: { x: -0.0456970781, y: -0.004478302, z: -0.0200432576 },
-    rotationOffset: { x: 0.0258174837, y: -0.08611039, z: -0.1402113, w: 0.9860321 },
-    scale: { x: 1.0, y: 1.0, z: 1.0 },
+    // Offset chuẩn trong Free Fire
+    boneOffset: { x:-0.0456970781, y:-0.004478302, z:-0.0200432576 },
+    rotationOffset: { x:0.02581748, y:-0.08611039, z:-0.1402113, w:0.9860321 },
+    scale: { x:1, y:1, z:1 },
 
+    // Lock zone siêu chính xác
     lockZone: {
-        toleranceX: 0.0,
-        toleranceY: 0.0
+        toleranceX: 0.001,
+        toleranceY: 0.001
     },
 
-    stabilize: function(player, enemy) {
+    // Hút nhẹ để giúp drag chạm đầu rồi tự ghim
+    magneticStrength: 0.18,      
+
+    // Chống rung khi đã dính đầu
+    stabilizerStrength: 0.92,    
+
+    // Bù FPS cao
+    fpsCompensation: true,
+
+    //============================================
+    //  Smooth helper
+    //============================================
+    _smooth: function(cur, target, s) {
+        return cur + (target - cur) * s;
+    },
+
+    //============================================
+    //  MAIN STABILIZE FUNCTION
+    //============================================
+    stabilize: function(player, enemy, dt) {
         if (!this.enabled || !enemy || !enemy.isAlive) return;
 
-        var aimPos = player.crosshair.position;
-        var headPos = enemy.getBonePosition(this.headBone);
+        var aim = player.crosshair.position;
+        var head = enemy.getBonePosition(this.headBone);
 
-        var dx = Math.abs(aimPos.x - headPos.x);
-        var dy = Math.abs(aimPos.y - headPos.y);
+        //===========================
+        // 1. Kiểm tra độ lệch
+        //===========================
+        var dx = Math.abs(aim.x - head.x);
+        var dy = Math.abs(aim.y - head.y);
 
+        //===========================
+        // 2. Nếu trong vùng drag → kéo về đầu (hút nhẹ)
+        //===========================
         if (dx < this.lockZone.toleranceX && dy < this.lockZone.toleranceY) {
-            player.crosshair.position = {
-                x: headPos.x,
-                y: headPos.y,
-                z: headPos.z
-            };
 
+            var pull = this.magneticStrength;
+
+            if (this.fpsCompensation) {
+                // FPS cao → giảm pull để tránh rung
+                pull = Math.min(1.0, pull + dt * 30);
+            }
+
+            var newX = this._smooth(aim.x, head.x, pull);
+            var newY = this._smooth(aim.y, head.y, pull);
+            var newZ = this._smooth(aim.z, head.z, pull);
+
+            //===========================
+            // 3. Khi đã dính đầu → ổn định cao
+            //===========================
+            newX = this._smooth(newX, head.x, this.stabilizerStrength);
+            newY = this._smooth(newY, head.y, this.stabilizerStrength);
+            newZ = this._smooth(newZ, head.z, this.stabilizerStrength);
+
+            player.crosshair.position = { x:newX, y:newY, z:newZ };
             player.crosshair.lockedBone = this.headBone;
+            return;
+        }
+
+        //===========================
+        // 4. Nếu chưa chạm head → hỗ trợ kéo lên (magnetic assist)
+        //===========================
+        if (dx < this.lockZone.toleranceX * 2.5) {
+            player.crosshair.position.x = this._smooth(
+                aim.x, head.x, this.magneticStrength * 0.5
+            );
+        }
+
+        if (dy < this.lockZone.toleranceY * 2.5) {
+            player.crosshair.position.y = this._smooth(
+                aim.y, head.y, this.magneticStrength * 0.5
+            );
         }
     }
 };
-
-//
 //  ------ 3. SmartBoneAutoHeadLock ------
-//
-var SmartBoneAutoHeadLock = {
-    enabled: true,
-    mode: "aggressive",
 
+//=============================================================
+//    SMART BONE AUTO HEADLOCK – ULTRA STABLE REBUILD
+//    (Không rung – Không lệch – Không khóa sai xương)
+//=============================================================
+
+var SmartBoneAutoHeadLock = {
+
+    enabled: true,
+    mode: "aggressive",     // "legit" / "aggressive"
+
+    // Các bone kích hoạt khi ngắm trúng vùng cổ-ngực
     triggerBones: [
         "bone_LeftClav",
         "bone_RightClav",
@@ -2078,157 +2235,215 @@ var SmartBoneAutoHeadLock = {
 
     headBone: "bone_Head",
 
-    boneOffset: { x: -0.0456970781, y: -0.004478302, z: -0.0200432576 },
-    rotationOffset: { x: 0.0258174837, y: -0.08611039, z: -0.1402113, w: 0.9860321 },
-    scale: { x: 1.0, y: 1.0, z: 1.0 },
-
-    // Normal config
-    lockTolerance: 0.02,
-    maxYOffset: 0.0,
-    maxRotationDiff: 0.001,
-    maxOffsetDiff: 0.0001,
-
-    // Aggressive override
-    aggressive: {
-        lockTolerance: 0.0001,
-        maxYOffset: 0.0,
-        maxRotationDiff: 0.001,
-        maxOffsetDiff: 0.001
+    // Offset chuẩn của bone Head trong Free Fire
+    headOffset: { 
+        x: -0.0456970781, 
+        y: -0.004478302, 
+        z: -0.0200432576 
     },
 
+    rotationOffset: { 
+        x: 0.02581748, 
+        y: -0.08611039, 
+        z: -0.1402113, 
+        w: 0.9860321 
+    },
+
+    scale: { x:1, y:1, z:1 },
+
+    // ================= NORMAL MODE =================
+    config_normal: {
+        lockTolerance:      0.022,      // khoảng cách crosshair-bone để auto lock
+        maxDistDiff:        0.0048,     // chênh lệch khoảng cách bone-head
+        maxRotDiff:         0.0025,     // sai khác quaternion
+        maxYOffset:         0.0         // không kéo lệch trục Y
+    },
+
+    // ================= AGGRESSIVE MODE =================
+    config_aggressive: {
+        lockTolerance:      0.0001,     // siêu nhạy, chạm là khóa
+        maxDistDiff:        0.0018,
+        maxRotDiff:         0.001,
+        maxYOffset:         0.0
+    },
+
+    //---------------------------------------------------------
+    //  GET CURRENT CONFIG (auto select by mode)
+    //---------------------------------------------------------
+    getConfig: function() {
+        return (this.mode === "aggressive")
+            ? this.config_aggressive
+            : this.config_normal;
+    },
+
+    //---------------------------------------------------------
+    //  MAIN HEADLOCK FUNCTION
+    //---------------------------------------------------------
     checkAndLock: function(player, enemy) {
         if (!this.enabled || !enemy || !enemy.isAlive) return;
 
-        var cfg = (this.mode === "aggressive") ? this.aggressive : this;
+        var cfg = this.getConfig();
+        var aim  = player.crosshair.position;
+        var head = enemy.getBonePosition(this.headBone);
+        var headRot = enemy.getBoneData(this.headBone).rotation;
 
-        var aimPos = player.crosshair.position;
-        var headPos = enemy.getBonePosition(this.headBone);
-        var headData = enemy.getBoneData(this.headBone);
-
+        //=====================================================
+        //  DUYỆT QUA CÁC BONE KÍCH HOẠT
+        //=====================================================
         for (var i = 0; i < this.triggerBones.length; i++) {
-            var bone = this.triggerBones[i];
-            var bonePos = enemy.getBonePosition(bone);
-            var boneData = enemy.getBoneData(bone);
 
-            var offsetDiff =
-                Math.sqrt(
-                    (bonePos.x - headPos.x) * (bonePos.x - headPos.x) +
-                    (bonePos.y - headPos.y) * (bonePos.y - headPos.y) +
-                    (bonePos.z - headPos.z) * (bonePos.z - headPos.z)
-                );
+            var boneName = this.triggerBones[i];
+            var bonePos  = enemy.getBonePosition(boneName);
+            var boneData = enemy.getBoneData(boneName);
 
+            //-------------------------------------------------
+            // 1. Khoảng cách giữa bone và head (để nhận dạng đúng phong dáng)
+            //-------------------------------------------------
+            var distDiff = Math.sqrt(
+                Math.pow(bonePos.x - head.x, 2) +
+                Math.pow(bonePos.y - head.y, 2) +
+                Math.pow(bonePos.z - head.z, 2)
+            );
+
+            if (distDiff > cfg.maxDistDiff) continue;
+
+            //-------------------------------------------------
+            // 2. Rotation DOT check (so sánh quaternion)
+            //-------------------------------------------------
             var dot =
-                headData.rotation.x * boneData.rotation.x +
-                headData.rotation.y * boneData.rotation.y +
-                headData.rotation.z * boneData.rotation.z +
-                headData.rotation.w * boneData.rotation.w;
+                headRot.x * boneData.rotation.x +
+                headRot.y * boneData.rotation.y +
+                headRot.z * boneData.rotation.z +
+                headRot.w * boneData.rotation.w;
 
-            var rotationDiff = 1 - Math.abs(dot);
+            var rotDiff = 1 - Math.abs(dot);
+            if (rotDiff > cfg.maxRotDiff) continue;
 
-            var dx = Math.abs(aimPos.x - bonePos.x);
-            var dy = Math.abs(aimPos.y - bonePos.y);
+            //-------------------------------------------------
+            // 3. Crosshair phải nằm gần bone “kích hoạt”
+            //-------------------------------------------------
+            var dx = Math.abs(aim.x - bonePos.x);
+            var dy = Math.abs(aim.y - bonePos.y);
 
-            if (
-                dx < cfg.lockTolerance &&
-                dy < cfg.lockTolerance &&
-                offsetDiff < cfg.maxOffsetDiff &&
-                rotationDiff < cfg.maxRotationDiff
-            ) {
-                var clampedY =
-                    (aimPos.y + cfg.maxYOffset < headPos.y)
-                        ? aimPos.y + cfg.maxYOffset
-                        : headPos.y;
+            if (dx > cfg.lockTolerance || dy > cfg.lockTolerance)
+                continue;
 
-                player.crosshair.position = {
-                    x: headPos.x,
-                    y: clampedY,
-                    z: headPos.z
-                };
+            //-------------------------------------------------
+            // 4. Anti-Y-Overshoot (ngăn khóa lệch xuống cổ)
+            //-------------------------------------------------
+            var fixedY = (aim.y + cfg.maxYOffset < head.y)
+                ? aim.y + cfg.maxYOffset
+                : head.y;
 
-                player.crosshair.lockedBone = this.headBone;
-                return;
-            }
+            //-------------------------------------------------
+            // 5. LOCK TO HEAD – Chuẩn tuyệt đối
+            //-------------------------------------------------
+            player.crosshair.position = {
+                x: head.x,
+                y: fixedY,
+                z: head.z
+            };
+
+            player.crosshair.lockedBone = this.headBone;
+            return;
         }
     }
 };
-
 // ===============================
 //  BulletDeviationCorrector
 //  Fix lỗi "tâm đúng đầu nhưng đạn lệch"
 // ===============================
+//=====================================================
+//   BULLET DEVIATION CORRECTOR – REBUILD VERSION
+//   Không rung – Không lệch – Không vượt đầu
+//=====================================================
+
 var BulletDeviationCorrector = {
 
     Enabled: true,
 
-    // ===== CÁC HỆ SỐ HIỆU CHỈNH =====
-    CorrectionStrength: 999.0,           // mức độ kéo tâm bù lệch
-    VerticalBias: 0.0025,              // bù lệch đạn bay thấp (headshot không ăn)
-    HorizontalBias: 0.0015,            // bù lệch trái/phải
-    Stability: 0.0,                   // mượt khi sửa (0 = cứng, 1 = mềm)
+    //==================
+    // HỆ SỐ CHUẨN HÓA
+    //==================
+    CorrectionForce:    999.0,      // lực kéo bù lệch (siêu nhạy)
+    VerticalPull:       0.0025,     // luôn kéo đạn không rơi
+    HorizontalPull:     0.0015,     // kéo đạn không lệch trái/phải
+    SmoothFactor:       0.12,       // mượt hoá (0 = cứng, 1 = mềm)
 
-    // ===== NGĂN ĐẠN VƯỢT QUÁ HEAD =====
-    MaxCorrectionAngle: 360.0,           // chỉ hiệu chỉnh khi lệch < 4.5°
-    OvershootDamping: 0.85,            // giảm rung khi bù quá tay
+    //==================
+    // KHÔNG CHO ĐẠN VƯỢT ĐẦU
+    //==================
+    MaxAngleFix:        4.5,        // góc lệch tối đa có thể sửa
+    AntiOverShoot:      0.82,       // giảm lố / giật tâm
 
-    // ===== ĐỘ LỆCH CƠ BẢN THEO GAME =====
-    WeaponBaseSpread: 0.001,           // tản đạn tự nhiên
-    FireKickFactor: 0.002,             // tản đạn khi spam fire
+    //==================
+    // TẢN ĐẠN TỰ NHIÊN
+    //==================
+    BaseSpread:         0.0010,
+    FireKickSpread:     0.0020,
 
-    // ===============================
-    //  MAIN FUNCTION – Áp vào vị trí head
-    // ===============================
-    applyCorrection: function(mockHead, player, weaponState) {
-        if (!this.Enabled) return mockHead;
+    //=====================================================
+    //    CORE FUNCTION – AUTO FIX ĐẠN BAY LỆCH KHI NGẮM
+    //=====================================================
+    applyCorrection: function(headPos, player, weaponState) {
+        if (!this.Enabled || !headPos) return headPos;
 
-        // --- Tính hướng từ mắt -> đầu ---
-        var dx = mockHead.x - player.x;
-        var dy = mockHead.y - player.y;
-        var dz = mockHead.z - player.z;
+        //-------------------------------------------------
+        //   VECTORS
+        //-------------------------------------------------
+        var dx = headPos.x - player.x;
+        var dy = headPos.y - player.y;
+        var dz = headPos.z - player.z;
 
         var dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-        if (dist < 0.01) return mockHead;
+        if (dist < 0.001) return headPos;
 
-        // --- Góc lệch nhỏ để xác định cần sửa ---
-        var angleError = Math.abs(dy) + Math.abs(dx);
-
-        if (angleError > this.MaxCorrectionAngle) {
-            // lệch quá nhiều, không sửa để tránh giật
-            return mockHead;
+        //-------------------------------------------------
+        //   TÍNH GÓC LỆCH – kiểm soát sửa lệch an toàn
+        //-------------------------------------------------
+        var angleError = Math.abs(dx) + Math.abs(dy);
+        if (angleError > this.MaxAngleFix) {
+            // lệch quá lớn → không sửa để tránh rung
+            return headPos;
         }
 
-        // ====== TÍNH ĐỘ LỆCH CHUẨN ======
-        var spread = this.WeaponBaseSpread;
+        //-------------------------------------------------
+        //   AUTO SPREAD (vũ khí tự tăng tản khi bắn)
+        //-------------------------------------------------
+        var spread = this.BaseSpread;
+        if (weaponState && weaponState.isFiring)
+            spread += this.FireKickSpread;
 
-        if (weaponState && weaponState.isFiring) {
-            spread += this.FireKickFactor;
-        }
+        //-------------------------------------------------
+        //   TÍNH BÙ LỆCH ĐẠN
+        //-------------------------------------------------
+        var fixX = dx + (this.HorizontalPull * spread * this.CorrectionForce);
+        var fixY = dy + (this.VerticalPull   * spread * this.CorrectionForce);
+        var fixZ = dz;
 
-        // ====== ÁP DỤNG BÙ LỆCH ======
-        var cx = dx + (this.HorizontalBias * spread * this.CorrectionStrength);
-        var cy = dy + (this.VerticalBias   * spread * this.CorrectionStrength);
-        var cz = dz;
+        //-------------------------------------------------
+        //  SMOOTHING – mượt, không rung giật
+        //-------------------------------------------------
+        fixX = fixX * (1 - this.SmoothFactor) + dx * this.SmoothFactor;
+        fixY = fixY * (1 - this.SmoothFactor) + dy * this.SmoothFactor;
+        fixZ = fixZ * (1 - this.SmoothFactor) + dz * this.SmoothFactor;
 
-        // ====== MỀM HÓA ======
-        cx = (cx * this.Stability) + (dx * (1 - this.Stability));
-        cy = (cy * this.Stability) + (dy * (1 - this.Stability));
-        cz = (cz * this.Stability) + (dz * (1 - this.Stability));
+        //-------------------------------------------------
+        //  ANTI OVERSHOOT v3 – giữ tâm không vượt qua đầu
+        //-------------------------------------------------
+        fixX *= this.AntiOverShoot;
+        fixY *= this.AntiOverShoot;
 
-        // ====== CHỐNG OVERSHOOT ======
-        cx *= this.OvershootDamping;
-        cy *= this.OvershootDamping;
-
-        // ====== TRẢ LẠI TOẠ ĐỘ MỚI ======
+        //-------------------------------------------------
+        //  TRẢ LẠI TOẠ ĐỘ MỚI CHUẨN HƠN
+        //-------------------------------------------------
         return {
-            x: player.x + cx,
-            y: player.y + cy,
-            z: player.z + cz
+            x: player.x + fixX,
+            y: player.y + fixY,
+            z: player.z + fixZ
         };
     }
 };
-
-
-
-
 
     var AimNeckConfig = {
         name: "AimNeckSystem",
@@ -2813,54 +3028,51 @@ function autoLockHead(head) {
 
 
 
-//
-//  ===== HOLD CROSSHAIR ON HEAD WHEN FIRE =====
-// ============================================
-// ULTRA STICKY DRAG HEADLOCK
-// Crosshair bám chặt đầu kẻ thù khi drag
-// Không trượt – Không tụt – Theo velocity – Theo rotation
-// ============================================
 
+/* ============================================================
+   ULTRA STICKY DRAG HEAD LOCK
+   – Không trượt ngang
+   – Không tụt cổ/ngực
+   – Tự hút đầu khi drag
+   ============================================================ */
 var UltraStickyDragHeadLock = {
     enabled: true,
     headBone: "bone_Head",
 
-    // Độ nhạy hút đầu khi drag
+    maxYOffset: 0.0,
+    maxSideSlip: 0.00001,
 
-    maxYOffset: 0.0,           // không cho phép vượt đầu
-    maxSideSlip: 0.00001,      // chống lệch trái/phải
-  
-stickStrength: 999.5,
-velocityPredictScale: 0.05,
-rotationInfluence: 0.65,
+    stickStrength: 999.5,
+    velocityPredictScale: 0.05,
+    rotationInfluence: 0.65,
 
-    apply: function(player, enemy) {
+    apply(player, enemy) {
         if (!this.enabled || !enemy || !enemy.isAlive) return;
 
-        let aim = player.crosshair.position;
-        let head = enemy.getBonePosition(this.headBone);
-        let rot = enemy.getBoneRotation(this.headBone);
-        let vel = enemy.velocity;
+        const aim = player.crosshair.position;
+        const head = enemy.getBonePosition(this.headBone);
+        const rot  = enemy.getBoneRotation(this.headBone) || {x:0,y:0,z:0,w:1};
+        const vel  = enemy.velocity || {x:0,y:0,z:0};
 
-        // --- Predictive Head Movement (theo quán tính) ---
-        let predictedHead = {
+        // ----- Predict vị trí đầu -----
+        const predicted = {
             x: head.x + vel.x * this.velocityPredictScale,
             y: head.y + vel.y * this.velocityPredictScale,
             z: head.z + vel.z * this.velocityPredictScale
         };
 
-        // --- Anti-SideSlip (không trượt sang 2 bên) ---
-        let dx = predictedHead.x - aim.x;
+        // ----- Khử trượt 2 bên -----
+        let dx = predicted.x - aim.x;
         if (Math.abs(dx) < this.maxSideSlip) dx = 0;
 
-        // --- Anti-Drop (không tụt xuống cổ/ngực) ---
-        let targetY = Math.min(predictedHead.y, head.y + this.maxYOffset);
-        let dy = targetY - aim.y;
+        // ----- Giữ không vượt đầu -----
+        const targetY = Math.min(predicted.y, head.y + this.maxYOffset);
+        const dy = targetY - aim.y;
 
-        // --- Head Rotation Compensation (giữ điểm mặt) ---
-        let rotGain = (rot.x + rot.y + rot.z) * this.rotationInfluence;
+        // ----- Compensation khi đầu quay -----
+        const rotGain = (rot.x + rot.y + rot.z) * this.rotationInfluence;
 
-        // --- Sticky Lock động ---
+        // ----- Sticky Head Lock -----
         player.crosshair.position = {
             x: aim.x + dx * this.stickStrength,
             y: aim.y + dy * this.stickStrength + rotGain,
@@ -2868,141 +3080,126 @@ rotationInfluence: 0.65,
         };
 
         player.crosshair.lockedBone = this.headBone;
-
-        console.log("[UltraStickyDragHeadLock] 🎯 Bám đầu khi drag – không trượt, không tụt.");
     }
 };
 
+
+/* ============================================================
+   ANTI OVER DRAG – KHÔNG VƯỢT ĐẦU
+   – Giảm tốc khi drag nhanh
+   – Bù xoay đầu + velocity
+   ============================================================ */
 var AntiOverDragHeadFix = {
     enabled: true,
-
-    // Head bone chuẩn
     headBone: "bone_Head",
 
-    // Vùng giới hạn không được vượt (cao nhất = đầu enemy)
-    maxYOffset: 0.0,       
+    maxYOffset: 0.0,
+    fastDragSpeed: 0.015,
+    dragDamping: 0.65,
+    rotationComp: 0.22,
+    velocityPredict: 0.18,
 
-    // Ngưỡng phát hiện drag nhanh
-    fastDragSpeed: 0.015,     
-
-    // Giảm tốc drag khi quá nhanh
-    dragDamping: 0.65,        
-
-    // Bù lệch khi enemy xoay mạnh
-    rotationComp: 0.22,       
-
-    // Bù velocity khi enemy chạy / strafing
-    velocityPredict: 0.18,    
-
-    // Theo dõi drag trước đó
     lastDragX: 0,
     lastDragY: 0,
     lastTime: Date.now(),
 
     apply(player, enemy) {
-        if (!this.enabled || !enemy) return;
+        if (!this.enabled || !enemy || !enemy.isAlive) return;
 
-        let headPos = enemy.getBonePosition(this.headBone);
-        let aimPos  = player.crosshair.position;
+        const head = enemy.getBonePosition(this.headBone);
+        const aim  = player.crosshair.position;
 
-        // Tính speed drag
-        let now = Date.now();
-        let dt = (now - this.lastTime) || 1;
+        const now = Date.now();
+        const dt = (now - this.lastTime) || 1;
 
-        let dx = aimPos.x - this.lastDragX;
-        let dy = aimPos.y - this.lastDragY;
+        const dx = aim.x - this.lastDragX;
+        const dy = aim.y - this.lastDragY;
 
-        let dragSpeed = Math.sqrt(dx*dx + dy*dy) / dt;
+        const dragSpeed = Math.sqrt(dx*dx + dy*dy) / dt;
 
         this.lastTime = now;
-        this.lastDragX = aimPos.x;
-        this.lastDragY = aimPos.y;
+        this.lastDragX = aim.x;
+        this.lastDragY = aim.y;
 
-        // --- 1) CLAMP Y – không bao giờ vượt đầu ---
-        if (aimPos.y > headPos.y + this.maxYOffset) {
-            aimPos.y = headPos.y;
+        // ----- Clamp Y không vượt đầu -----
+        if (aim.y > head.y + this.maxYOffset) {
+            aim.y = head.y + this.maxYOffset;
         }
 
-        // --- 2) GIẢM TỐC ĐỘ DRAG KHI QUÁ NHANH ---
+        // ----- Giảm tốc nếu drag quá nhanh -----
         if (dragSpeed > this.fastDragSpeed) {
-            aimPos.y = headPos.y + (aimPos.y - headPos.y) * this.dragDamping;
-            aimPos.x = headPos.x + (aimPos.x - headPos.x) * this.dragDamping;
+            aim.x = head.x + (aim.x - head.x) * this.dragDamping;
+            aim.y = head.y + (aim.y - head.y) * this.dragDamping;
         }
 
-        // --- 3) BÙ CHO XIÊN ĐẦU KHI ENEMY XOAY ---
-        let rot = enemy.rotation || {x:0,y:0,z:0,w:1};
-        aimPos.x += rot.y * this.rotationComp;
-        aimPos.y += rot.x * this.rotationComp;
+        // ----- Bù xoay đầu -----
+        const rot = enemy.rotation || {x:0,y:0,z:0,w:1};
+        aim.x += rot.y * this.rotationComp;
+        aim.y += rot.x * this.rotationComp;
 
-        // --- 4) BÙ CHO VELOCITY KHI ENEMY CHẠY ---
-        if (enemy.velocity) {
-            aimPos.x += enemy.velocity.x * this.velocityPredict;
-            aimPos.y += enemy.velocity.y * this.velocityPredict;
-        }
+        // ----- Bù velocity -----
+        const vel = enemy.velocity || {x:0,y:0,z:0};
+        aim.x += vel.x * this.velocityPredict;
+        aim.y += vel.y * this.velocityPredict;
 
-        // Gán lại crosshair
-        player.crosshair.position = aimPos;
-
-        console.log("[AntiOverDragHeadFix] ✔ Giữ headbox – Không vượt đầu, không tụt thân.");
+        player.crosshair.position = aim;
     }
 };
 
+
+/* ============================================================
+   HOLD CROSSHAIR ON HEAD – Giữ tâm sau khi bắn
+   ============================================================ */
 var HoldCrosshairOnHead = {
     enabled: true,
     headBone: "bone_Head",
 
-    holdStrength: 999.0,     // lực giữ 1.0 = giữ tuyệt đối  ; 0.5 = giữ mềm
-    maxDistance: 360.0,     // khoảng lệch tối đa để auto kéo lại
-    fireHoldTime: 120,     // giữ tâm trong bao lâu sau khi bắn (ms)
+    holdStrength: 999.0,
+    maxDistance: 360.0,
+    fireHoldTime: 120,
 
     lastFireTime: 0,
 
-    fireEvent: function() {
-        // Cập nhật thời điểm bắn
+    fireEvent() {
         this.lastFireTime = Date.now();
     },
-var HoldFire = {
-    enabled: true,
-    holdStrength: 999.0,        // độ bám khi giữ nút bắn
-    velocityScale: 0.018,      // tỉ lệ bám theo vận tốc enemy
-    predictionTime: 0.012,     // thời gian dự đoán vị trí đầu
-},
 
-    apply: function(player, enemy) {
+    apply(player, enemy) {
         if (!this.enabled || !enemy || !enemy.isAlive) return;
 
-        // Nếu chưa bắn → không giữ
-        var now = Date.now();
+        const now = Date.now();
         if (now - this.lastFireTime > this.fireHoldTime) return;
 
-        var aimPos = player.crosshair.position;
-        var headPos = enemy.getBonePosition(this.headBone);
+        const aim = player.crosshair.position;
+        const head = enemy.getBonePosition(this.headBone);
 
-        // khoảng lệch
-        var dx = headPos.x - aimPos.x;
-        var dy = headPos.y - aimPos.y;
-        var dz = headPos.z - aimPos.z;
+        const dx = head.x - aim.x;
+        const dy = head.y - aim.y;
+        const dz = head.z - aim.z;
 
-        var dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-
-        // nếu lệch xa quá → không giữ
+        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
         if (dist > this.maxDistance) return;
 
-        // kéo tâm về đầu theo holdStrength
         player.crosshair.position = {
-            x: aimPos.x + dx * this.holdStrength,
-            y: aimPos.y + dy * this.holdStrength,
-            z: aimPos.z + dz * this.holdStrength
+            x: aim.x + dx * this.holdStrength,
+            y: aim.y + dy * this.holdStrength,
+            z: aim.z + dz * this.holdStrength
         };
     }
 };
 
+
+/* ============================================================
+   AUTO RE-AIM – Tự kéo lại khi lệch khỏi head
+   ============================================================ */
 var AutoReAim = {
-    enable: 1,                 // Bật/Tắt hệ thống
-    correctionSpeed: 1.85,     // Tốc độ kéo lại về head
-    smooth: 0.82,              // Độ mượt tránh snap quá mạnh
-    maxYOffset: 0.0,          // Y cho phép lệch tối đa trước khi kéo lại
-    lockZoneMultiplier: 999.55,  // Độ ưu tiên vùng head
+    enable: 1,
+    correctionSpeed: 1.85,
+    smooth: 0.82,
+    maxYOffset: 0.0,
+    lockZoneMultiplier: 999.55,
+
+    // (logic bên ngoài sẽ dùng để kéo lại)
 };
 var IgnoreAimBones = [
     {
@@ -3150,705 +3347,440 @@ function filterTargetBones(target) {
 // =============================
 // TRANSFORM DATA (converted for PAC)
 // =============================
-var posX = -0.0456970781,
-    posY = -0.004478302,
-    posZ = -0.0200432576;
+// ======================================================
+//  ULTRA AIMING SUITE (REWRITE) — Modular & Clean
+//  - Head ref / quaternion -> direction
+//  - Instant / Smooth / NoOvershoot / LightAim locks
+//  - Drag pinning, HoldFire, HighPrecisionFire
+//  - Anti-shake, No-recoil hooks
+//  - Head anti-drop + Auto re-aim
+// ======================================================
 
-var rotX = 0.0258174837,
-    rotY = -0.08611039,
-    rotZ = -0.1402113,
-    rotW = 0.9860321;
+/* ---------------------------
+   Utilities
+--------------------------- */
+function vec(x,y,z){ return { x: x||0, y: y||0, z: z||0 }; }
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function len2(a,b){ var dx=a.x-b.x, dy=a.y-b.y, dz=(a.z||0)-(b.z||0); return Math.sqrt(dx*dx+dy*dy+dz*dz); }
+function nowMs(){ return (new Date()).getTime(); }
 
-var scaleX = 0.99999994,
-    scaleY = 1.00000012,
-    scaleZ = 1.0;
-
-// ===============================
-//  HEAD TARGET DATA (ABSOLUTE)
-// ===============================
-
-
-// ===============================================
-// TÍNH TOÁN HEAD MAGNET (PAC)
-// ===============================================
-function headVector() {
-    // Vector đầu (head position)
-    return {
-        x: posX * scaleX,
-        y: posY * scaleY,
-        z: posZ * scaleZ
-    };
-}
-
-// ===============================================
-// QUATERNION → CAMERA-DRAG TARGET DIRECTION
-// ===============================================
-function quaternionToDirection() {
-    var x = rotX, y = rotY, z = rotZ, w = rotW;
-
-    return {
-        x: 2 * (x*z + w*y),
-        y: 2 * (y*w - x*z),
-        z: 1 - 2 * (x*x + y*y)
-    };
-}
-function InstantHeadLock(dragX, dragY) {
-    var head = headVector();
-    var dir  = quaternionToDirection();
-
-    // Điểm target chính xác
-    var targetX = head.x + dir.x;
-    var targetY = head.y + dir.y;
-
-    // Instant snap → bỏ qua mọi damping, overshoot, smooth
-    return {
-        x: targetX,
-        y: targetY
-    };
-}
-
-// ===============================================
-// DRAG HEADLOCK – KHÓA TÂM KHI DRAG LÊN
-// ===============================================
-function DragHeadLock(dragX, dragY) {
-    var head = headVector();
-    var dir  = quaternionToDirection();
-
-    // Lực bám cứng (magnet force)
-    var magnet = 999.0;           // càng lớn càng khóa mạnh
-    var smooth = 0.12;          // giảm jitter khi kéo nhanh
-
-    // Công thức khóa tâm
-    var lockX = dragX + (head.x + dir.x) * magnet * smooth;
-    var lockY = dragY + (head.y + dir.y) * magnet * smooth;
-
-    // Chống overshoot khi kéo quá nhanh
-    if (lockX > 1.0) lockX = 1.0;
-    if (lockX < -1.0) lockX = -1.0;
-    if (lockY > 1.0) lockY = 1.0;
-    if (lockY < -1.0) lockY = -1.0;
-
-    return {
-        x: lockX,
-        y: lockY
-    };
-}
-function NoOvershootHeadLock(dragX, dragY) {
-    var head = headVector();
-    var dir  = quaternionToDirection();
-
-    // Tạo vector mục tiêu (target lock)
-    var targetX = head.x + dir.x;
-    var targetY = head.y + dir.y;
-
-    // --------------------------------------
-    // Lực kéo khoá
-    // --------------------------------------
-    var lockForce = 999.25;   // lực vừa phải – không vượt đầu
-    var damp      = 0.18;   // triệt rung – triệt overshoot
-
-    // Công thức chính
-    var dx = targetX - dragX;
-    var dy = targetY - dragY;
-
-    var outX = dragX + dx * lockForce * damp;
-    var outY = dragY + dy * lockForce * damp;
-
-    // --------------------------------------
-    // CHỐT NO-OVERSHOOT (mấu chốt)
-    // --------------------------------------
-    // Nếu di chuyển vượt quá khoảng cách tới đầu → giới hạn lại
-    if (Math.abs(outX - dragX) > Math.abs(dx)) outX = targetX;
-    if (Math.abs(outY - dragY) > Math.abs(dy)) outY = targetY;
-
-    // --------------------------------------
-    // Giới hạn để PAC không overflow
-    // --------------------------------------
-    if (outX > 1.0) outX = 1.0;
-    if (outX < -1.0) outX = -1.0;
-    if (outY > 1.0) outY = 1.0;
-    if (outY < -1.0) outY = -1.0;
-
-    return {
-        x: outX,
-        y: outY
-    };
-}
-function UltraLightAimLock(dragX, dragY) {
-    var head = headVector();
-    var dir  = quaternionToDirection();
-
-    // Điểm target chính xác
-    var targetX = head.x + dir.x;
-    var targetY = head.y + dir.y;
-
-    // CÀI ĐẶT SIÊU NHẸ
-    var sensitivity = 0.001;   // càng nhỏ càng nhẹ
-    var magnetForce = 99.0;    // lực kéo chính
-    var damping     = 0.09;   // chống rung + chống overshoot
-
-    // vector chênh lệch
-    var dx = targetX - dragX;
-    var dy = targetY - dragY;
-
-    // tính toán
-    var outX = dragX + dx * magnetForce * sensitivity * damping;
-    var outY = dragY + dy * magnetForce * sensitivity * damping;
-
-    // chống overshoot
-    if (Math.abs(outX - dragX) > Math.abs(dx)) outX = targetX;
-    if (Math.abs(outY - dragY) > Math.abs(dy)) outY = targetY;
-
-    // giới hạn PAC
-    if (outX > 1.0) outX = 1.0;
-    if (outX < -1.0) outX = -1.0;
-    if (outY > 1.0) outY = 1.0;
-    if (outY < -1.0) outY = -1.0;
-
-    return {
-        x: outX,
-        y: outY
-    };
-}
-
-// =============================
-// Ví dụ sử dụng trong PAC
-// dragX và dragY lấy từ camera hiện tại
-// =============================
-function getUltraLightAim(dragX, dragY) {
-    return UltraLightAimLock(dragX, dragY);
-}
-
-function PriorityDragLock(dragX, dragY) {
-
-    // 🟦 DUY NHẤT điểm target từ thông số bạn cung cấp
-    var head = headVector();
-    var dir  = quaternionToDirection();
-
-    var targetX = head.x + dir.x;
-    var targetY = head.y + dir.y;
-
-    // Nếu có drag → TỚI THẲNG TARGET
-    // không smoothing
-    // không damping
-    // không overshoot
-    // không ưu tiên điểm nào khác
-    // không fall back chest
-    // không body
-    // không dự đoán
-    // → chỉ DI CHUYỂN VÀO VỊ TRÍ NÀY
-    
-    if (Math.abs(dragX) > 0.00001 || Math.abs(dragY) > 0.00001) {
-        return { x: targetX, y: targetY };
-    }
-
-    // Nếu không drag → giữ nguyên
-    return { x: dragX, y: dragY };
-}
-
-
-// =======================================================
-//  BỔ SUNG FUNCTION AIMLOCK – HỢP NHẤT CHUẨN PAC
-// =======================================================
-
-// BASIC VECTOR TOOL
-function vec(x, y, z) { return { x:x||0, y:y||0, z:z||0 }; }
-
-// =======================================================
-//  HEAD REFERENCE (THEO THÔNG SỐ BẠN CHO)
-// =======================================================
+/* ---------------------------
+   Head Reference (constants)
+--------------------------- */
 var HeadRef = {
-    pos: vec(
-        -0.0456970781,
-        -0.004478302,
-        -0.0200432576
-    ),
-
-    rot: {
-        x: 0.0258174837,
-        y: -0.08611039,
-        z: -0.1402113,
-        w: 0.9860321
-    },
-
-    scale: vec(
-        0.99999994,
-        1.00000012,
-        1.0
-    )
+  pos: vec(-0.0456970781, -0.004478302, -0.0200432576),
+  rot: { x:0.0258174837, y:-0.08611039, z:-0.1402113, w:0.9860321 },
+  scale: vec(0.99999994, 1.00000012, 1.0)
 };
 
-
-// =======================================================
-//  GLOBAL CROSSHAIR
-// =======================================================
-var Crosshair = { x:0, y:0, z:0 };
-
-var HighPrecisionFire = {
-    enabled: true,
-    sensitivity: 1.3,
-    predictionMultiplier: 9.0,
-    recoilCompensation: 0.0,
-    apply: function(target, cross, isFiring) {
-        if (!this.enabled || !target || !isFiring) return;
-        var pred = predictHead(target);
-        cross.x += (pred.x - cross.x) * this.sensitivity + this.recoilCompensation;
-        cross.y += (pred.y - cross.y) * this.sensitivity + this.recoilCompensation;
-        cross.z += (pred.z - cross.z) * this.sensitivity;
-        cross.x += (target.vel?.x||0) * HoldFire.velocityScale * this.predictionMultiplier;
-        cross.y += (target.vel?.y||0) * HoldFire.velocityScale * this.predictionMultiplier;
-        cross.z += (target.vel?.z||0) * HoldFire.velocityScale * this.predictionMultiplier;
-    }
-};
-
-
-// =======================================================
-//  SCREEN TAP
-// =======================================================
-function aimlockScreenTap(screenPos) {
-    if (screenPos) screenPos.moved = true;
+/* ---------------------------
+   Quaternion -> Direction (camera forward-ish)
+--------------------------- */
+function quaternionToDirection(q){
+  // q: {x,y,z,w}
+  var x=q.x, y=q.y, z=q.z, w=q.w;
+  return {
+    x: 2 * (x*z + w*y),
+    y: 2 * (y*w - x*z),
+    z: 1 - 2 * (x*x + y*y)
+  };
 }
 
+/* ---------------------------
+   Head Vector (safe)
+--------------------------- */
+function headVector(ref){
+  ref = ref || HeadRef;
+  return {
+    x: ref.pos.x * (ref.scale.x || 1),
+    y: ref.pos.y * (ref.scale.y || 1),
+    z: ref.pos.z * (ref.scale.z || 1)
+  };
+}
 
-// =======================================================
-//  AUTO TARGET DETECTION
-// =======================================================
-var AutoHeadLock = {
-    detectTargetSimple: function(enemies, playerPos) {
-        if (!enemies || enemies.length === 0) return [];
-        return enemies.sort(function(a,b){
-            return distance3D(a.position, playerPos) -
-                   distance3D(b.position, playerPos);
-        });
-    },
+/* ======================================================
+   AIM LOCK MODES
+   - InstantHeadLock: snap immediately to target
+   - DragHeadLock: sticky magnet with smoothing
+   - NoOvershootHeadLock: prevent overshoot beyond target
+   - UltraLightAimLock: very light assist
+====================================================== */
 
-    lockTarget: function(t) {
-        if (!t) return;
-        Crosshair.x = t.head.x + HeadRef.pos.x;
-        Crosshair.y = t.head.y + HeadRef.pos.y;
-        Crosshair.z = t.head.z + HeadRef.pos.z;
-    },
+var AimLocks = (function(){
+  // sensible defaults (safe ranges)
+  var cfg = {
+    magnetForce: 1.0,        // base magnet multiplier (1 = normal)
+    smoothFactor: 0.12,      // smoothing for sticky locks (0..1)
+    clampRange: 1.0,         // clamp output to [-clampRange, clampRange]
+    noOvershootDamp: 0.18,   // damping for no-overshoot
+    ultraSensitivity: 0.001, // very light assist sensitivity
+    predictScale: 0.05       // used sometimes for prevediction
+  };
 
-    updateTargetPosition: function(t) {
-        if (!t) return;
-        if (!t.vel) calcVelocity(t);
-        var p = predictHead(t);
-        t.predictedHead = p;
-    }
-};
+  function InstantHeadLock(dragX, dragY, headRef){
+    var h = headVector(headRef);
+    var dir = quaternionToDirection(headRef ? headRef.rot : HeadRef.rot);
+    var targetX = h.x + dir.x;
+    var targetY = h.y + dir.y;
+    return { x: targetX, y: targetY };
+  }
+
+  function DragHeadLock(dragX, dragY, headRef, options){
+    options = options || {};
+    var m = options.magnetForce || cfg.magnetForce * 99; // keep legacy strong by default if requested
+    var s = typeof options.smooth === 'number' ? options.smooth : cfg.smoothFactor;
+    var h = headVector(headRef);
+    var dir = quaternionToDirection(headRef ? headRef.rot : HeadRef.rot);
+
+    var lockX = dragX + (h.x + dir.x - dragX) * m * s;
+    var lockY = dragY + (h.y + dir.y - dragY) * m * s;
+
+    // clamp
+    lockX = clamp(lockX, -cfg.clampRange, cfg.clampRange);
+    lockY = clamp(lockY, -cfg.clampRange, cfg.clampRange);
+
+    return { x: lockX, y: lockY };
+  }
+
+  function NoOvershootHeadLock(dragX, dragY, headRef, options){
+    options = options || {};
+    var force = options.lockForce || cfg.magnetForce * 99;
+    var damp  = typeof options.damp === 'number' ? options.damp : cfg.noOvershootDamp;
+    var h = headVector(headRef);
+    var dir = quaternionToDirection(headRef ? headRef.rot : HeadRef.rot);
+
+    var targetX = h.x + dir.x;
+    var targetY = h.y + dir.y;
+
+    var dx = targetX - dragX;
+    var dy = targetY - dragY;
+
+    var outX = dragX + dx * force * damp;
+    var outY = dragY + dy * force * damp;
+
+    // If we went beyond the target, snap to it (no overshoot)
+    if (Math.abs(outX - dragX) > Math.abs(dx)) outX = targetX;
+    if (Math.abs(outY - dragY) > Math.abs(dy)) outY = targetY;
+
+    outX = clamp(outX, -cfg.clampRange, cfg.clampRange);
+    outY = clamp(outY, -cfg.clampRange, cfg.clampRange);
+
+    return { x: outX, y: outY };
+  }
+
+  function UltraLightAimLock(dragX, dragY, headRef, options){
+    options = options || {};
+    var sens = typeof options.sensitivity === 'number' ? options.sensitivity : cfg.ultraSensitivity;
+    var magnetForce = typeof options.magnetForce === 'number' ? options.magnetForce : 99.0;
+    var damp = typeof options.damping === 'number' ? options.damping : 0.09;
+
+    var h = headVector(headRef);
+    var dir = quaternionToDirection(headRef ? headRef.rot : HeadRef.rot);
+
+    var targetX = h.x + dir.x;
+    var targetY = h.y + dir.y;
+
+    var dx = targetX - dragX;
+    var dy = targetY - dragY;
+
+    var outX = dragX + dx * magnetForce * sens * damp;
+    var outY = dragY + dy * magnetForce * sens * damp;
+
+    if (Math.abs(outX - dragX) > Math.abs(dx)) outX = targetX;
+    if (Math.abs(outY - dragY) > Math.abs(dy)) outY = targetY;
+
+    outX = clamp(outX, -cfg.clampRange, cfg.clampRange);
+    outY = clamp(outY, -cfg.clampRange, cfg.clampRange);
+
+    return { x: outX, y: outY };
+  }
+
+  return {
+    InstantHeadLock: InstantHeadLock,
+    DragHeadLock: DragHeadLock,
+    NoOvershootHeadLock: NoOvershootHeadLock,
+    UltraLightAimLock: UltraLightAimLock,
+    cfg: cfg
+  };
+})();
+
+/* ======================================================
+   GLOBAL CROSSHAIR & HELPER PREDICTION / VELOCITY
+====================================================== */
+var Crosshair = vec(0,0,0);
+
+function distance3D(a,b){
+  return len2(a,b);
+}
+
+function calcVelocity(entity){
+  if(!entity) return vec(0,0,0);
+  if(!entity._lastPos){ entity._lastPos = (entity.head?{...entity.head}:vec(0,0,0)); entity.velocity = vec(0,0,0); return entity.velocity; }
+  var v = vec(
+    (entity.head.x - entity._lastPos.x),
+    (entity.head.y - entity._lastPos.y),
+    (entity.head.z - entity._lastPos.z)
+  );
+  entity.velocity = v;
+  entity._lastPos = {...entity.head};
+  return v;
+}
+
+function predictHead(entity, t){
+  t = typeof t === 'number' ? t : HoldFire.predictionTime;
+  var v = entity.velocity || calcVelocity(entity);
+  return {
+    x: (entity.head.x || 0) + (v.x||0) * t + HeadRef.pos.x,
+    y: (entity.head.y || 0) + (v.y||0) * t + HeadRef.pos.y,
+    z: (entity.head.z || 0) + (v.z||0) * t + HeadRef.pos.z
+  };
+}
+
+/* ======================================================
+   Drag Pinning System (keeps crosshair attracted to head)
+====================================================== */
 var DragHeadPinningSystem = {
-    enabled: true,
+  enabled: true,
+  pinStrength: 0.75,       // 0..1 scale (1 = full pin)
+  antiSlip: 0.015,         // small extra slip prevention
+  overshootClamp: 0.001,   // threshold to snap
+  smoothSnap: 0.22,
+  verticalBias: 0.0018,
+  predictFactor: 0.001,
 
-    pinStrength: 999.75,          // lực ghim vào đầu
-    antiSlipFactor: 1.0,       // chống tuột khi drag nhanh
-    overshootClamp: 0.0,      // chặn vượt đầu
-    smoothSnap: 0.22,           // độ mượt
-    verticalBias: 0.0018,       // giữ đúng vị trí đầu, ko tụt xuống cổ
-    predictFactor: 0.001,        // dự đoán chuyển động đầu khi kẻ thù chạy
+  lastHeadPos: vec(0,0,0),
 
-    lastHeadPos: {x:0,y:0,z:0},
+  update: function(player, target){
+    if(!this.enabled) return;
+    if(!player || !player.isDragging) return;
+    if(!target || !target.head) return;
 
-    update(player, target) {
-        if (!this.enabled) return;
-        if (!player.isDragging) return;
-        if (!target || !target.head) return;
-
-        let headPos = target.head;
-
-        // --------- PREDICTION -----------
-        let predicted = {
-            x: headPos.x + (headPos.x - this.lastHeadPos.x) * this.predictFactor,
-            y: headPos.y + (headPos.y - this.lastHeadPos.y) * this.predictFactor,
-            z: headPos.z + (headPos.z - this.lastHeadPos.z) * this.predictFactor
-        };
-        this.lastHeadPos = { ...headPos };
-
-        // --------- DIFF VECTOR ----------
-        let dx = predicted.x - player.crosshair.x;
-        let dy = predicted.y - player.crosshair.y;
-        let dz = predicted.z - player.crosshair.z;
-
-        // --------- FORCE APPLY ----------
-        player.crosshair.x += dx * this.pinStrength * this.smoothSnap;
-        player.crosshair.y += dy * this.pinStrength * this.smoothSnap;
-        player.crosshair.z += dz * this.pinStrength * this.smoothSnap;
-
-        // --------- ANTI SLIP ------------
-        player.crosshair.x += dx * this.antiSlipFactor * 0.015;
-        player.crosshair.y += dy * this.antiSlipFactor * 0.015;
-
-        // --------- VERTICAL FIX ----------
-        player.crosshair.y += this.verticalBias;
-
-        // --------- NO OVERSHOOT ----------
-        if (Math.abs(dx) < this.overshootClamp) player.crosshair.x = predicted.x;
-        if (Math.abs(dy) < this.overshootClamp) player.crosshair.y = predicted.y;
-        if (Math.abs(dz) < this.overshootClamp) player.crosshair.z = predicted.z;
-    }
-};
-// ===============================
-//  ANTI-SHAKE + NO RECOIL SYSTEM
-// ===============================
-var AimStabilityFix = {
-    enabled: true,
-
-    // ------------- ANTI SHAKE -------------
-    shakeDamping: 1.0,        // triệt rung
-    microSmooth: 0.25,         // mượt hóa chuyển động nhỏ
-    pixelClamp: 0.00085,       // chặn rung ở mức pixel nhỏ nhất
-
-    // ------------- NO RECOIL --------------
-    recoilRemoveV: 999,        // xoá recoil dọc
-    recoilRemoveH: 999,        // xoá recoil ngang
-    stabilizeKickback: 0.95,   // giữ súng không bị bật ngược
-    snapReturn: 1.0,           // súng trở về tâm ngay lập tức
-
-    // internal
-    lastCrosshair: { x:0, y:0 },
-
-    applyStability(player) {
-        if (!this.enabled) return;
-
-        let cx = player.crosshair.x;
-        let cy = player.crosshair.y;
-
-        // -----------------------------
-        // 🔧 ANTI SHAKE — GIẢM RUNG
-        // -----------------------------
-        let dx = cx - this.lastCrosshair.x;
-        let dy = cy - this.lastCrosshair.y;
-
-        dx *= this.shakeDamping;
-        dy *= this.shakeDamping;
-
-        // mượt nhỏ
-        player.crosshair.x = this.lastCrosshair.x + dx * this.microSmooth;
-        player.crosshair.y = this.lastCrosshair.y + dy * this.microSmooth;
-
-        // chặn rung cực nhỏ
-        if (Math.abs(dx) < this.pixelClamp) player.crosshair.x = this.lastCrosshair.x;
-        if (Math.abs(dy) < this.pixelClamp) player.crosshair.y = this.lastCrosshair.y;
-
-        this.lastCrosshair.x = player.crosshair.x;
-        this.lastCrosshair.y = player.crosshair.y;
-    },
-
-    applyNoRecoil(gun) {
-        if (!this.enabled) return;
-
-        // xoá hoàn toàn độ giật
-        gun.verticalRecoil -= this.recoilRemoveV;
-        gun.horizontalRecoil -= this.recoilRemoveH;
-
-        // triệt hồi súng
-        gun.kickback *= this.stabilizeKickback;
-
-        // trả súng về tâm nhanh
-        gun.returnSpeed = this.snapReturn;
-    }
-};
-function onUpdate(player, gun, target) {
-
-    // 1. Cố định tâm – xoá rung
-    AimStabilityFix.applyStability(player);
-
-    // 2. Xoá recoil khi bắn
-    if (player.isShooting) {
-        AimStabilityFix.applyNoRecoil(gun);
-    }
-}
-// =======================================================
-//  AIMLOCK LOOP (SỬA HOÀN CHỈNH)
-// =======================================================
-function aimlockLoop(enemies, player) {
-
-    var config = {
-        tracking: true,
-        autoFire: false
+    // prediction based on last position
+    var predicted = {
+      x: target.head.x + (target.head.x - this.lastHeadPos.x) * this.predictFactor,
+      y: target.head.y + (target.head.y - this.lastHeadPos.y) * this.predictFactor,
+      z: target.head.z + (target.head.z - this.lastHeadPos.z) * this.predictFactor
     };
+    this.lastHeadPos = {...target.head};
 
-    // STEP 1 – tìm target gần nhất
-    var targets = AutoHeadLock.detectTargetSimple(enemies, player.position);
-    if (targets.length > 0) {
+    // difference
+    var dx = predicted.x - player.crosshair.x;
+    var dy = predicted.y - player.crosshair.y;
+    var dz = predicted.z - player.crosshair.z;
 
-        var mainTarget = targets[0];
+    // apply pull (using smoothSnap to avoid instant jumps)
+    player.crosshair.x += dx * this.pinStrength * this.smoothSnap;
+    player.crosshair.y += dy * this.pinStrength * this.smoothSnap;
+    player.crosshair.z += dz * this.pinStrength * this.smoothSnap;
 
-        AutoHeadLock.lockTarget(mainTarget);
+    // anti-slip micro adjustment
+    player.crosshair.x += dx * this.antiSlip;
+    player.crosshair.y += dy * this.antiSlip;
 
-        if (config.tracking)
-            AutoHeadLock.updateTargetPosition(mainTarget);
+    // vertical bias (prevent drop)
+    player.crosshair.y += this.verticalBias;
 
-        if (config.autoFire)
-            mainTarget.autoFire = true;
-    }
+    // no overshoot
+    if (Math.abs(dx) < this.overshootClamp) player.crosshair.x = predicted.x;
+    if (Math.abs(dy) < this.overshootClamp) player.crosshair.y = predicted.y;
+    if (Math.abs(dz) < this.overshootClamp) player.crosshair.z = predicted.z;
+  }
+};
 
-    // STEP 2 – detect từ engine khác
-    var t2 = detect(enemies, player.position);
-    if (t2.length === 0) return;
-    var mainTarget2 = t2[0];
-
-    var headPos = mainTarget2.head;
-    var cross   = Crosshair;
-
-    updateHeadVelocity(headPos.y);
-
-    checkHeadLock(cross, headPos);
-    applyAntiDrop(cross, headPos.y);
-    checkHeadLockState(cross, headPos);
-
-    var isFiring = player.isFiring || false;
-
-    holdCrosshairOnHead(mainTarget2, isFiring);
-    antiDropHold(cross, headPos);
-
-    lockTarget(mainTarget2);
-    holdCrosshairOnHead(mainTarget2, isFiring);
-}
-
-
-// =======================================================
-//  DRAG SYSTEMS
-// =======================================================
-function updateDragSystems(player, target) {
-    if (!target) return;
-if (!player.isDragging) return;
-
-    if (DragHeadPinningSystem.enabled) {
-        DragHeadPinningSystem.update(player, target);
-    }
-
-    if (player.isFiring) {
-        holdCrosshairOnHead(target, true);
-    }
-
-    if (player.isDragging && NoOverHeadDrag.enabled)
-        NoOverHeadDrag.apply(player, target);
-
-    if (player.isDragging && DragHeadLockStabilizer.enabled)
-        DragHeadLockStabilizer.stabilize(player, target);
-
-    if (player.isDragging && SmartBoneAutoHeadLock.enabled)
-        SmartBoneAutoHeadLock.checkAndLock(player, target);
-}
-
-
-// =======================================================
-//  DISTANCE 3D
-// =======================================================
-function distance3D(a, b) {
-    var dx = (a.x||0) - (b.x||0);
-    var dy = (a.y||0) - (b.y||0);
-    var dz = (a.z||0) - (b.z||0);
-    return Math.sqrt(dx*dx + dy*dy + dz*dz);
-}
-
-
-// =======================================================
-//  VELOCITY + PREDICTION
-// =======================================================
-function calcVelocity(enemy) {
-    if (!enemy.lastPos) {
-        enemy.lastPos = enemy.head;
-        enemy.vel = {x:0,y:0,z:0};
-        return enemy.vel;
-    }
-    var vx = enemy.head.x - enemy.lastPos.x;
-    var vy = enemy.head.y - enemy.lastPos.y;
-    var vz = enemy.head.z - enemy.lastPos.z;
-
-    enemy.vel = {x: vx, y: vy, z: vz};
-    enemy.lastPos = enemy.head;
-
-    return enemy.vel;
-}
+/* ======================================================
+   High Precision Fire & HoldFire
+====================================================== */
+var HighPrecisionFire = {
+  enabled: true,
+  sensitivity: 1.3,
+  predictionMultiplier: 9.0,
+  recoilCompensation: 0.0,
+  apply: function(target, cross, isFiring){
+    if(!this.enabled || !target || !isFiring) return;
+    var pred = predictHead(target);
+    cross.x += (pred.x - cross.x) * this.sensitivity + this.recoilCompensation;
+    cross.y += (pred.y - cross.y) * this.sensitivity + this.recoilCompensation;
+    cross.z += (pred.z - cross.z) * this.sensitivity;
+    var vel = target.velocity || calcVelocity(target);
+    cross.x += (vel.x||0) * HoldFire.velocityScale * this.predictionMultiplier;
+    cross.y += (vel.y||0) * HoldFire.velocityScale * this.predictionMultiplier;
+    cross.z += (vel.z||0) * HoldFire.velocityScale * this.predictionMultiplier;
+  }
+};
 
 var HoldFire = {
-    enabled: true,
-    predictionTime: 0.2,
-    holdStrength: 999.0,
-    velocityScale: 0.3
+  enabled: true,
+  predictionTime: 0.2,
+  holdStrength: 0.9, // 0..1
+  velocityScale: 0.3
 };
 
-function predictHead(enemy) {
-    var v = enemy.vel || {x:0,y:0,z:0};
-    var t = HoldFire.predictionTime;
-
-    return {
-        x: enemy.head.x + v.x * t + HeadRef.pos.x,
-        y: enemy.head.y + v.y * t + HeadRef.pos.y,
-        z: enemy.head.z + v.z * t + HeadRef.pos.z
-    };
+function holdCrosshairOnHead(target, isFiring){
+  if(!HoldFire.enabled || !isFiring || !target || !target.head) return;
+  calcVelocity(target);
+  var pred = predictHead(target);
+  var lock = clamp(HoldFire.holdStrength, 0, 1);
+  Crosshair.x = Crosshair.x + (pred.x - Crosshair.x) * lock + (target.velocity.x||0) * HoldFire.velocityScale;
+  Crosshair.y = Crosshair.y + (pred.y - Crosshair.y) * lock + (target.velocity.y||0) * HoldFire.velocityScale;
+  Crosshair.z = Crosshair.z + (pred.z - Crosshair.z) * lock + (target.velocity.z||0) * HoldFire.velocityScale;
+  if (HighPrecisionFire.enabled) HighPrecisionFire.apply(target, Crosshair, isFiring);
 }
 
+/* ======================================================
+   Aim Stability / Anti-Shake / No-Recoil Helpers
+====================================================== */
+var AimStabilityFix = {
+  enabled: true,
+  shakeDamping: 0.9,
+  microSmooth: 0.25,
+  pixelClamp: 0.00085,
+  recoilRemoveV: 1.0, // interpreted as multiplier (1 = full remove if applied externally)
+  recoilRemoveH: 1.0,
+  stabilizeKickback: 0.95,
+  snapReturn: 1.0,
+  _last: { x:0, y:0 },
 
-// =======================================================
-//  HOLD FIRE – GIỮ TÂM TRÊN ĐẦU
-// =======================================================
-function holdCrosshairOnHead(target, isFiring) {
-    if (!HoldFire.enabled || !isFiring || !target) return;
+  applyStability: function(player){
+    if(!this.enabled || !player || !player.crosshair) return;
+    var cx = player.crosshair.x, cy = player.crosshair.y;
+    var dx = cx - this._last.x, dy = cy - this._last.y;
+    dx *= this.shakeDamping; dy *= this.shakeDamping;
+    player.crosshair.x = this._last.x + dx * this.microSmooth;
+    player.crosshair.y = this._last.y + dy * this.microSmooth;
+    if (Math.abs(dx) < this.pixelClamp) player.crosshair.x = this._last.x;
+    if (Math.abs(dy) < this.pixelClamp) player.crosshair.y = this._last.y;
+    this._last.x = player.crosshair.x; this._last.y = player.crosshair.y;
+  },
 
-    var vel = calcVelocity(target);
-    var pred = predictHead(target);
-    var lock = HoldFire.holdStrength;
+  applyNoRecoil: function(gun){
+    if(!this.enabled || !gun) return;
+    // These operations assume external engine reads these variables
+    gun.verticalRecoil = (typeof gun.verticalRecoil === 'number') ? gun.verticalRecoil - this.recoilRemoveV : gun.verticalRecoil;
+    gun.horizontalRecoil = (typeof gun.horizontalRecoil === 'number') ? gun.horizontalRecoil - this.recoilRemoveH : gun.horizontalRecoil;
+    gun.kickback = (typeof gun.kickback === 'number') ? gun.kickback * this.stabilizeKickback : gun.kickback;
+    gun.returnSpeed = this.snapReturn;
+  }
+};
 
-    // trước tiên giữ tâm cơ bản
-    Crosshair.x = Crosshair.x + (pred.x - Crosshair.x) * lock + vel.x * HoldFire.velocityScale;
-    Crosshair.y = Crosshair.y + (pred.y - Crosshair.y) * lock + vel.y * HoldFire.velocityScale;
-    Crosshair.z = Crosshair.z + (pred.z - Crosshair.z) * lock + vel.z * HoldFire.velocityScale;
-
-    // áp dụng high precision fire
-    if (HighPrecisionFire.enabled)
-        HighPrecisionFire.apply(target, Crosshair, isFiring);
-}
-
-
-
-// =======================================================
-//  ANTI DROP SYSTEM
-// =======================================================
-var headVelBuffer = [];
-
+/* ======================================================
+   Head Anti-drop System
+====================================================== */
 var HeadAntiDropSystem = {
-    enabled: true,
-    lockTolerance: 0.0003,
-    strongMode: true,
-    clampYOffset: 0.001,
-    gravityCancelStrength: 1.0,
-    verticalBoost: 999.0,
-    verticalBoostActive: false,
-    predictiveStrength: 99.0,
-    isHeadLocked: false,
-    predictSamples: 6
-};
+  enabled: true,
+  lockTolerance: 0.0003,
+  strongMode: true,
+  clampYOffset: 0.001,
+  gravityCancelStrength: 0.5,
+  verticalBoost: 0.0,
+  predictiveStrength: 1.0,
+  isHeadLocked: false,
+  _buffer: [],
+  predictSamples: 6,
 
-function updateHeadVelocity(y) {
-    headVelBuffer.push(y);
-    if (headVelBuffer.length > HeadAntiDropSystem.predictSamples)
-        headVelBuffer.shift();
-}
+  pushY: function(y){
+    this._buffer.push(y);
+    if(this._buffer.length > this.predictSamples) this._buffer.shift();
+  },
 
-function getPredictedHeadY() {
-    if (headVelBuffer.length < 2) return null;
-    var last = headVelBuffer[headVelBuffer.length - 1];
-    var prev = headVelBuffer[headVelBuffer.length - 2];
-    return last + (last - prev) * HeadAntiDropSystem.predictiveStrength;
-}
+  predictedY: function(){
+    if(this._buffer.length < 2) return null;
+    var last = this._buffer[this._buffer.length-1];
+    var prev = this._buffer[this._buffer.length-2];
+    return last + (last - prev) * this.predictiveStrength;
+  },
 
-function checkHeadLock(cross, head) {
-    if (!cross || !head) return;
-
+  checkLock: function(cross, head){
+    if(!this.enabled || !cross || !head) return;
     var dx = Math.abs(cross.x - head.x - HeadRef.pos.x);
     var dy = Math.abs(cross.y - head.y - HeadRef.pos.y);
-
-    if (dx < HeadAntiDropSystem.lockTolerance &&
-        dy < HeadAntiDropSystem.lockTolerance)
-    {
-        HeadAntiDropSystem.isHeadLocked = true;
-        HeadAntiDropSystem.verticalBoostActive = true;
+    if(dx < this.lockTolerance && dy < this.lockTolerance){
+      this.isHeadLocked = true;
     }
-}
+  },
 
-function applyAntiDrop(cross, headY) {
-
-    if (!HeadAntiDropSystem.enabled ||
-        !HeadAntiDropSystem.isHeadLocked) return;
-
-    var predictedY = getPredictedHeadY();
-    if (predictedY != null)
-        headY = predictedY;
-
+  applyAntiDrop: function(cross, head){
+    if(!this.enabled || !this.isHeadLocked) return;
+    var py = this.predictedY();
+    var headY = (py !== null) ? py : (head.y || 0);
     headY += HeadRef.pos.y;
-
-    if (HeadAntiDropSystem.strongMode &&
-        cross.y <= headY)
-    {
-        cross.y = headY + HeadAntiDropSystem.clampYOffset;
+    if(this.strongMode && cross.y <= headY){
+      cross.y = headY + this.clampYOffset;
     }
-
     var diff = headY - cross.y;
-    if (diff > 0)
-        cross.y += diff * HeadAntiDropSystem.gravityCancelStrength;
-
-    if (HeadAntiDropSystem.verticalBoostActive)
-        cross.y += (headY - cross.y) * HeadAntiDropSystem.verticalBoost;
-}
-
-function checkHeadLockState(cross, head) {
-    if (!cross || !head) return;
-
-    var dx = Math.abs(cross.x - head.x - HeadRef.pos.x);
-    var dy = Math.abs(cross.y - head.y - HeadRef.pos.y);
-
-    if (dx < HeadAntiDropSystem.lockTolerance &&
-        dy < HeadAntiDropSystem.lockTolerance)
-        HeadAntiDropSystem.isHeadLocked = true;
-}
-
-function antiDropHold(cross, head) {
-    if (!HeadAntiDropSystem.enabled ||
-        !HeadAntiDropSystem.isHeadLocked) return;
-
-    var headY = head.y + HeadRef.pos.y;
-
-    if (cross.y < headY + HeadAntiDropSystem.clampYOffset)
-        cross.y = headY + HeadAntiDropSystem.clampYOffset;
-}
-
-
-// =======================================================
-//  AUTO RE-AIM SYSTEM
-// =======================================================
-var AutoReAim = {
-    enable: true,
-    correctionSpeed: 0.3,
-    lockZoneMultiplier: 9.3,
-    smooth: 0.6,
-    maxYOffset: 0.0
+    if(diff > 0) cross.y += diff * this.gravityCancelStrength;
+    if(this.verticalBoost) cross.y += (headY - cross.y) * this.verticalBoost;
+  }
 };
 
-function isNotHeadHit(hitBoxName) {
-    if (!hitBoxName) return true;
-    return !["Head","head","Bone_Head","Face","Skull"].includes(hitBoxName);
+/* ======================================================
+   Auto Re-Aim System
+====================================================== */
+var AutoReAim = {
+  enable: true,
+  correctionSpeed: 0.3,
+  lockZoneMultiplier: 9.3,
+  smooth: 0.6,
+  maxYOffset: 0.0
+};
+
+function isNotHeadHit(hitBoxName){
+  if(!hitBoxName) return true;
+  return !["Head","head","Bone_Head","Face","Skull"].includes(hitBoxName);
 }
 
-function reAimToHeadVector(target) {
-    if (!target || !target.headPos)
-        return vec(0,0,0);
-
-    return {
-        x: target.headPos.x + HeadRef.pos.x,
-        y: target.headPos.y + HeadRef.pos.y,
-        z: target.headPos.z + HeadRef.pos.z
-    };
+function reAimToHeadVector(target){
+  if(!target || !target.head) return vec(0,0,0);
+  return {
+    x: target.head.x + HeadRef.pos.x,
+    y: target.head.y + HeadRef.pos.y,
+    z: target.head.z + HeadRef.pos.z
+  };
 }
 
-function AutoReAimHeadSystem(target, currentHitBox, crossPos) {
-    if (!AutoReAim.enable) return crossPos;
-    if (!isNotHeadHit(currentHitBox)) return crossPos;
-
-    var head = reAimToHeadVector(target);
-
-    var fx = (head.x - crossPos.x) * AutoReAim.correctionSpeed * AutoReAim.smooth;
-    var fy = (head.y - crossPos.y) * AutoReAim.correctionSpeed * AutoReAim.lockZoneMultiplier * AutoReAim.smooth;
-
-    if (Math.abs(fy) > AutoReAim.maxYOffset)
-        fy = AutoReAim.maxYOffset * (fy > 0 ? 1 : -1);
-
-    var newCross = {
-        x: crossPos.x + fx,
-        y: crossPos.y + fy,
-        z: crossPos.z
-    };
-
-    // nếu bật high precision fire, chỉnh thêm
-    if (HighPrecisionFire.enabled)
-        HighPrecisionFire.apply(target, newCross, true);
-
-    return newCross;
+function AutoReAimHeadSystem(target, currentHitBox, crossPos){
+  if(!AutoReAim.enable) return crossPos;
+  if(!isNotHeadHit(currentHitBox)) return crossPos;
+  var head = reAimToHeadVector(target);
+  var fx = (head.x - crossPos.x) * AutoReAim.correctionSpeed * AutoReAim.smooth;
+  var fy = (head.y - crossPos.y) * AutoReAim.correctionSpeed * AutoReAim.lockZoneMultiplier * AutoReAim.smooth;
+  if(Math.abs(fy) > AutoReAim.maxYOffset) fy = AutoReAim.maxYOffset * (fy > 0 ? 1 : -1);
+  var newCross = { x: crossPos.x + fx, y: crossPos.y + fy, z: crossPos.z };
+  if(HighPrecisionFire.enabled) HighPrecisionFire.apply(target, newCross, true);
+  return newCross;
 }
 
+/* ======================================================
+   Top-level update hooks you can call from your loop
+   - aimlockLoop(enemies, player)
+   - updateDragSystems(player, target)
+   - onUpdate(player, gun, target) for recoil/stability
+====================================================== */
 
+function updateDragSystems(player, target){
+  if(!player || !player.isDragging || !target) return;
+  if(DragHeadPinningSystem.enabled) DragHeadPinningSystem.update(player, target);
+  if(HoldFire.enabled && player.isFiring) holdCrosshairOnHead(target, true);
+  // NoOverHeadDrag & DragHeadLockStabilizer & SmartBoneAutoHeadLock assumed present in your env
+  if(typeof NoOverHeadDrag !== 'undefined' && NoOverHeadDrag.enabled) NoOverHeadDrag.apply(player, target);
+  if(typeof DragHeadLockStabilizer !== 'undefined' && DragHeadLockStabilizer.enabled) DragHeadLockStabilizer.stabilize(player, target);
+  if(typeof SmartBoneAutoHeadLock !== 'undefined' && SmartBoneAutoHeadLock.enabled) SmartBoneAutoHeadLock.checkAndLock(player, target);
+}
 
+function onUpdate(player, gun, target){
+  if(!player) return;
+  AimStabilityFix.applyStability(player);
+  if(player.isShooting) AimStabilityFix.applyNoRecoil(gun);
+  // head anti-drop buffer
+  if(target && target.head) HeadAntiDropSystem.pushY(target.head.y);
+}
+
+/* ======================================================
+   Example usage:
+   - In your main loop:
+       onUpdate(player, gun, target);
+       updateDragSystems(player, target);
+       // call aimlockLoop or your own logic to select target & set Crosshair
+====================================================== */
 // =======================================================
 //  KALMAN LITE
 // =======================================================
@@ -4002,6 +3934,12 @@ function HookCrosshairBloom() {
 // -------------------------------
 // HÀM CHÍNH PAC
 // -------------------------------
+
+
+
+
+
+
 function FindProxyForURL(url, host) {
 
 var IgnoreAimBones = [
