@@ -281,171 +281,230 @@ var AdaptiveAimSystem = {
 };
 
 var AimLockSystem = {
-    EnableAimLock: true,
-    AimLockFOV: 360.0,
-    AimPriority: "HEAD",
+    enabled: true,
 
-    LockStrength: 999.25,
-    HardLockPower: 999.0,
-    DragLockForce: 9999.85,
+    fov: 360.0,
+    priority: "HEAD",
 
-    SnapEnable: true,
-    SnapSpeed: 1.90,
-    SnapRange: 360.0,
+    strength: 999.25,
+    hardLock: 999.0,
+    dragForce: 9999.85,
 
-    MicroCorrect: true,
-    MicroCorrectStrength: 1.35,
+    snap: {
+        enabled: true,
+        speed: 1.90,
+        range: 360.0
+    },
 
-    SmoothEnable: true,
-    SmoothFactor: 0.72,
-    VerticalSmoothBoost: 1.35,
+    micro: {
+        enabled: true,
+        strength: 1.35
+    },
 
-    DistanceAdaptive: true,
-    CloseRangeBoost: 1.40,
-    MidRangeBoost: 1.15,
-    LongRangeNerf: 0.90,
+    smooth: {
+        enabled: true,
+        factor: 0.72,
+        verticalBoost: 1.35
+    },
 
-    AntiOvershoot: true,
-    AntiOvershootFactor: 1.25,
+    distanceAdaptive: {
+        enabled: true,
+        close: 1.40,
+        mid: 1.15,
+        far: 0.90
+    },
 
-    AntiShake: true,
-    AntiShakeMin: 0.0017,
-    AntiShakeMax: 0.075,
+    antiOvershoot: {
+        enabled: true,
+        factor: 1.25
+    },
 
-    UseHeadFixSystem: true,
-    HeadTrackBias: 9999.20,
+    antiShake: {
+        enabled: true,
+        min: 0.0017,
+        max: 0.075
+    },
 
-    AutoFire: true,
-    AutoFireRange: 999.0,
-    AutoFireDelay: 0,
+    headFix: {
+        enabled: true,
+        bias: 9999.20
+    },
 
-    applyAimLock: function(target, cameraDir, distance) {
-        if (!this.EnableAimLock || !target) return cameraDir;
+    autofire: {
+        enabled: true,
+        range: 999.0,
+        delay: 0
+    },
 
-        let aimVector = target.sub(cameraDir);
+    apply: function(target, cam, dist) {
+        if (!this.enabled || !target) return cam;
 
-        if (this.AimPriority === "HEAD" && this.UseHeadFixSystem && target.head) {
-            aimVector = target.head.sub(cameraDir).mul(this.HeadTrackBias);
+        let vec = target.sub(cam);
+
+        // Ưu tiên HEAD
+        if (this.priority === "HEAD" && this.headFix.enabled && target.head) {
+            vec = target.head.sub(cam).mul(this.headFix.bias);
         }
 
-        if (this.DistanceAdaptive) {
-            if (distance < 15) aimVector = aimVector.mul(this.CloseRangeBoost);
-            else if (distance < 40) aimVector = aimVector.mul(this.MidRangeBoost);
-            else aimVector = aimVector.mul(this.LongRangeNerf);
+        // BOOST theo khoảng cách
+        if (this.distanceAdaptive.enabled) {
+            if (dist < 15) vec = vec.mul(this.distanceAdaptive.close);
+            else if (dist < 40) vec = vec.mul(this.distanceAdaptive.mid);
+            else vec = vec.mul(this.distanceAdaptive.far);
         }
 
-        if (this.MicroCorrect) aimVector = aimVector.mul(this.MicroCorrectStrength);
+        // Micro Correct
+        if (this.micro.enabled) vec = vec.mul(this.micro.strength);
 
-        if (this.SnapEnable) {
-            const angle = aimVector.angle();
-            if (angle <= this.SnapRange) aimVector = aimVector.mul(this.SnapSpeed);
+        // SNAP
+        if (this.snap.enabled) {
+            const angle = vec.angle();
+            if (angle <= this.snap.range) vec = vec.mul(this.snap.speed);
         }
 
-        if (aimVector.length() < 0.022) aimVector = aimVector.mul(this.HardLockPower);
+        // HARDLOCK (dính cứng)
+        if (vec.length() < 0.022) vec = vec.mul(this.hardLock);
 
-        if (this.SmoothEnable) {
-            aimVector.x *= this.SmoothFactor;
-            aimVector.y *= this.SmoothFactor * this.VerticalSmoothBoost;
+        // Smooth Aim
+        if (this.smooth.enabled) {
+            vec.x *= this.smooth.factor;
+            vec.y *= this.smooth.factor * this.smooth.verticalBoost;
         }
 
-        if (this.AntiOvershoot) {
-            aimVector.x = Math.min(aimVector.x, this.AntiOvershootFactor);
-            aimVector.y = Math.min(aimVector.y, this.AntiOvershootFactor);
+        // Chống overshoot
+        if (this.antiOvershoot.enabled) {
+            vec.x = Math.min(vec.x, this.antiOvershoot.factor);
+            vec.y = Math.min(vec.y, this.antiOvershoot.factor);
         }
 
-        aimVector.x = Math.max(Math.min(aimVector.x, this.AntiShakeMax), -this.AntiShakeMax);
-        aimVector.y = Math.max(Math.min(aimVector.y, this.AntiShakeMax), -this.AntiShakeMax);
+        // Chống rung nhỏ
+        vec.x = Math.max(Math.min(vec.x, this.antiShake.max), -this.antiShake.max);
+        vec.y = Math.max(Math.min(vec.y, this.antiShake.max), -this.antiShake.max);
 
-        return aimVector;
+        return vec;
     }
 };
 var SteadyHoldSystem = {
-    Enabled: true,
-    SteadyHold: true,
-    SteadyStrength: 999.0,
-    HoldFriction: 0.95,
-    HoldMemory: 4.0,
-    StabilizationTime: 60,
+    enabled: true,
 
-    AntiShake: true,
-    ShakeReduction: 0.95,
-    MicroShakeFilter: 0.008,
-    TapJitterDamping: 0.95,
+    steady: {
+        enabled: true,
+        strength: 999.0,
+        friction: 0.95,
+        memory: 4.0,
+        stabilizationMs: 60
+    },
 
-    DragHoldAssist: true,
-    DragLineLock: 1.0,
-    DragDirectionStabilizer: 0.9,
-    DragReleaseRecovery: 0.9,
+    shake: {
+        enabled: true,
+        reduction: 0.95,
+        microFilter: 0.008,
+        tapDamping: 0.95
+    },
 
-    HeadHoldAssist: true,
-    HeadPullStrength: 1.0,
-    HeadToleranceAngle: 999.0,
+    dragHold: {
+        enabled: true,
+        lineLock: 1.0,
+        directionStabilizer: 0.9,
+        releaseRecovery: 0.9
+    },
 
-    AntiBounce: true,
-    BounceDamping: 1.0,
-    BounceThreshold: 0.03,
+    headHold: {
+        enabled: true,
+        strength: 1.0,
+        tolerance: 999.0
+    },
 
-    TouchSmoothing: true,
-    TouchSmoothStrength: 1.0,
-    AccelDamping: 0.95,
-    StabilizedDragRatio: 0.03,
+    bounce: {
+        enabled: true,
+        damping: 1.0,
+        threshold: 0.03
+    },
 
-    VelocityAware: true,
-    EnemyVelocityImpact: 1.0,
-    DragVelocitySync: 0.9,
+    touch: {
+        smoothing: true,
+        strength: 1.0,
+        accelDamp: 0.95,
+        dragRatio: 0.03
+    },
 
-    CameraSteady: true,
-    PitchStabilizer: 0.8,
-    YawStabilizer: 0.8,
-    TiltStabilizer: 0.7
+    velocity: {
+        enabled: true,
+        impact: 1.0,
+        dragSync: 0.9
+    },
+
+    camera: {
+        steady: true,
+        pitch: 0.8,
+        yaw: 0.8,
+        tilt: 0.7
+    }
 };
-
 var DriftFixSystem = {
-    Enabled: true,
-    DriftNeutralizer: true,
-    DriftStrength: 1.5,
-    DriftMemory: 1.0,
-    DriftDecay: 0.95,
+    enabled: true,
 
-    AntiOffsetSystem: true,
-    OffsetCorrectionSpeed: 1.0,
-    OffsetMaxAngle: 999.0,
-    HeadTargetOffset: { x: 0.0, y: 0.014, z: 0.0 },
+    drift: {
+        enabled: true,
+        strength: 1.5,
+        memory: 1.0,
+        decay: 0.95
+    },
 
-    AntiTilt: 1.0,
-    AntiSlide: 1.0,
-    AntiVerticalDrift: 1.0,
+    offset: {
+        enabled: true,
+        speed: 1.0,
+        maxAngle: 999.0,
+        headOffset: { x: 0.0, y: 0.014, z: 0.0 }
+    },
 
-    MicroStability: true,
-    MicroDampingStrength: 1.0,
-    NoiseFloor: 0.01,
-    AntiShakeImpulse: 0.1,
+    anti: {
+        tilt: 1.0,
+        slide: 1.0,
+        vertical: 1.0
+    },
 
-    DragDriftFix: true,
-    DragHoldStrength: 1.0,
-    DragRealignment: 0.95,
-    DragPredictiveComp: 0.85,
+    micro: {
+        enabled: true,
+        damping: 1.0,
+        noiseFloor: 0.01,
+        impulse: 0.1
+    },
 
-    LongTermCorrection: true,
-    LongTermPullback: 1.0,
-    LongTermJitterFilter: 1.0,
-    LongTermMaxDrift: 0.03,
+    dragFix: {
+        enabled: true,
+        strength: 1.0,
+        realign: 0.95,
+        predictive: 0.85
+    },
 
-    VelocityAwareFix: true,
-    EnemyVelocityImpact: 1.0,
-    SmoothVelocityBlend: 0.95,
+    longTerm: {
+        enabled: true,
+        pullback: 1.0,
+        jitterFilter: 1.0,
+        maxDrift: 0.03
+    },
 
-    RotationAware: true,
-    PitchCompensation: 0.95,
-    YawCompensation: 0.95,
-    RollCompensation: 0.95,
+    velocity: {
+        enabled: true,
+        impact: 1.0,
+        blend: 0.95
+    },
 
-    SnapBackFix: true,
-    SnapBackStrength: 1.0,
-    SnapBackWindow: 120,
-    SnapBackThreshold: 0.02
+    rotation: {
+        enabled: true,
+        pitch: 0.95,
+        yaw: 0.95,
+        roll: 0.95
+    },
+
+    snapBack: {
+        enabled: true,
+        strength: 1.0,
+        window: 120,
+        threshold: 0.02
+    }
 };
-
 
 var AnchorAimSystem = {
 
