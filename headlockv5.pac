@@ -7,7 +7,7 @@ var DragHeadAntiShake = {
     smoothFactor: 0.82,          // làm mượt gốc
     fpsBoostFactor: 0.35,        // tăng mượt khi FPS cao
     jitterCut: 0.55,             // cắt rung FPS cao
-    autoStick: 0.90,             // giữ dính đầu khi drag
+    autoStick: 1.0,             // giữ dính đầu khi drag
     returnForce: 0.28,           // kéo tâm quay lại đầu
     deadzone: 0.65,              // vùng nhỏ bỏ rung hoàn toàn
     limit: 10,                   // hạn chế không lố đầu
