@@ -4884,142 +4884,150 @@ if (typeof HardLockSystem === "undefined") {
     var HeadTracking = HeadTracking || { LockStrength:999.0 };
     var AimLockSystem = AimLockSystem || { EnableAimLock:true, applyAimLock:function(a){return a;} };
 
-    // ==========================================================
-    // REMOVE GRAVITY (Xóa trọng lực kéo aim xuống)
-    // ==========================================================
-    var RemoveGravityY = {
-        enabled: true,
-        boostY: 0.0028,
-        apply: function(aimPos, target) {
-            if (!this.enabled) return aimPos;
-            aimPos.y += this.boostY;
-            return aimPos;
+/*===========================================================
+    REMOVE GRAVITY – XÓA TRỌNG LỰC KÉO AIM XUỐNG
+===========================================================*/
+var RemoveGravityY = {
+    enabled: true,
+    boostY: 0.0028,
+
+    apply(aim, target) {
+        if (!this.enabled) return aim;
+        aim.y += this.boostY;
+        return aim;
+    }
+};
+
+
+/*===========================================================
+    REMOVE CAMERA FRICTION – XÓA MA SÁT XOAY CAMERA
+===========================================================*/
+var RemoveCameraFriction = {
+    enabled: true,
+    camFric: 0.0,
+
+    apply(aim, player) {
+        if (!this.enabled) return aim;
+        aim.x += player.camDX * this.camFric;
+        aim.y += player.camDY * this.camFric;
+        return aim;
+    }
+};
+
+
+/*===========================================================
+    REMOVE AIM SLOWDOWN – XÓA HIỆN TƯỢNG CHẬM AIM KHI GẦN ĐỊCH
+===========================================================*/
+var RemoveAimSlowdown = {
+    enabled: true,
+    multiplier: 1.0,
+
+    apply(aim, target) {
+        if (!this.enabled || !target) return aim;
+
+        // Xóa slowdown khi địch trong phạm vi gần
+        if (target.dist < 8) {
+            aim.x *= (1 + this.multiplier);
+            aim.y *= (1 + this.multiplier);
         }
-    };
+        return aim;
+    }
+};
 
-    // ==========================================================
-    // REMOVE CAMERA FRICTION (Ma sát camera khi xoay)
-    // ==========================================================
-    var RemoveCameraFriction = {
-        enabled: true,
-        camFric: 0.00,
-        angleBoost: 0.00,
-        apply: function(aimPos, player) {
-            if (!this.enabled) return aimPos;
-            aimPos.x += player.camDX * this.camFric;
-            aimPos.y += player.camDY * this.camFric;
-            return aimPos;
+
+/*===========================================================
+    REMOVE AIM FRICTION – XÓA MA SÁT TÂM NGẮM HOÀN TOÀN
+===========================================================*/
+var RemoveAimFriction = {
+    enabled: true,
+    microFix: true,
+    lastX: 0,
+    lastY: 0,
+    lastT: Date.now(),
+
+    apply(aim) {
+        if (!this.enabled) return aim;
+
+        var now = Date.now();
+        var dt = (now - this.lastT) || 1;
+
+        var dx = aim.x - this.lastX;
+        var dy = aim.y - this.lastY;
+        var speed = Math.sqrt(dx*dx + dy*dy) / dt;
+
+        this.lastX = aim.x;
+        this.lastY = aim.y;
+        this.lastT = now;
+
+        // Không áp ma sát (0 friction)
+        // Nhưng có khử micro-stall nếu di chuyển quá nhỏ
+        if (this.microFix && speed < 0.0006) {
+            aim.x += dx * 1.4;
+            aim.y += dy * 1.4;
         }
-    };
 
-    // ==========================================================
-    // REMOVE AIM SLOWDOWN (ADS slowdown, sticky slow zone)
-    // ==========================================================
-    var RemoveAimSlowdown = {
-        enabled: true,
-        slowdownDelete: 1.0,
-        apply: function(aimPos, target) {
-            if (!this.enabled) return aimPos;
-            if (target && target.dist < 8) {
-                aimPos.x *= 1 + this.slowdownDelete;
-                aimPos.y *= 1 + this.slowdownDelete;
-            }
-            return aimPos;
-        }
-    };
+        return aim;
+    }
+};
 
-    // ==========================================================
-    // REMOVE AIM FRICTION (full remove)
-    // ==========================================================
-    var RemoveAimFriction = {
-        enabled: true,
-        frictionXY: 0,
-        slowZoneFriction: 0,
-        angleFriction: 0,
-        dragResistance: 0,
-        rotationDrag: 0,
-        microStallFix: true,
-        lastAimX: 0,
-        lastAimY: 0,
-        lastTime: Date.now(),
 
-        apply: function(aimPos, target, player) {
-            if (!this.enabled) return aimPos;
+/*===========================================================
+    ULTRA DRAG OPTIMIZER – DRAG CỰC MƯỢT + SIÊU TĂNG
+===========================================================*/
+var UltraDragOptimizer = {
+    enabled: true,
+    boost: 999.35,
 
-            var now = Date.now();
-            var dt = (now - this.lastTime) || 1;
+    apply(aim) {
+        if (!this.enabled) return aim;
+        aim.x *= this.boost;
+        aim.y *= this.boost;
+        return aim;
+    }
+};
 
-            var dx = aimPos.x - this.lastAimX;
-            var dy = aimPos.y - this.lastAimY;
-            var rawSpeed = Math.sqrt(dx*dx + dy*dy) / dt;
 
-            this.lastAimX = aimPos.x;
-            this.lastAimY = aimPos.y;
-            this.lastTime = now;
+/*===========================================================
+    ULTRA HEADLOCK BOOST – HÚT VỀ ĐẦU MẠNH
+===========================================================*/
+var UltraHeadLockBoost = {
+    enabled: true,
+    bias: 0.20,
 
-            aimPos.x += dx * 0;
-            aimPos.y += dy * 0;
+    apply(aim, target) {
+        if (!this.enabled || !target) return aim;
 
-            if (this.microStallFix && rawSpeed < 0.0006) {
-                aimPos.x += dx * 1.4;
-                aimPos.y += dy * 1.4;
-            }
+        aim.x += (target.headX - aim.x) * this.bias;
+        aim.y += (target.headY - aim.y) * this.bias;
 
-            return aimPos;
-        }
-    };
-
-    // ==========================================================
-    // ULTRA DRAG BOOSTER (drag mượt – không khựng)
-    // ==========================================================
-    var UltraDragOptimizer = {
-        enabled: true,
-        boost: 999.35,
-        apply: function(aimPos) {
-            if (!this.enabled) return aimPos;
-            aimPos.x *= this.boost;
-            aimPos.y *= this.boost;
-            return aimPos;
-        }
-    };
-
-    // ==========================================================
-    // ULTRA HEADLOCK BOOST
-    // ==========================================================
-    var UltraHeadLockBoost = {
-        enabled: true,
-        bias: 0.2,
-        apply: function(aimPos, target) {
-            if (!this.enabled || !target) return aimPos;
-            aimPos.x += (target.headX - aimPos.x) * this.bias;
-            aimPos.y += (target.headY - aimPos.y) * this.bias;
-            return aimPos;
-        }
-    };
+        return aim;
+    }
+};
 // =======================================================================
-// 🔥 MAGNET HEADLOCK PACK — FULL COMBO 300% + INSTANT + DRAGSAFE
+// 🔥 MAGNET HEADLOCK PACK — FULL COMBO (300% / INSTANT / DRAGSAFE)
 // =======================================================================
 
-// =====================================================
-// 1) MagnetHeadLock_X3 — Lực hút 300% cực mạnh nhưng vẫn mượt
-// =====================================================
+
+// =======================================================================
+// 1) MagnetHeadLock_X3 — Lực hút mạnh nhưng vẫn mượt
+// =======================================================================
 var MagnetHeadLock_X3 = {
     enabled: true,
 
-    magnetStrength: 999.0,              // lực hút x3
-    closeRangeBoost: 999.0,             // boost khi rất gần đầu
+    magnetStrength: 999.0,
+    closeRangeBoost: 999.0,
     smoothFactor: 0.35,
     snapThreshold: 0.001,
     predictionFactor: 0.001,
     distanceScale: true,
 
-    apply(aimPos, target, player) {
+    apply: function (aimPos, target, player) {
         if (!this.enabled || !target || !target.headPos) return aimPos;
 
         let head = target.headPos;
         let dx = head.x - aimPos.x;
         let dy = head.y - aimPos.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
+        let dist = Math.hypot(dx, dy);
 
         if (dist < 0.06) {
             dx *= this.closeRangeBoost;
@@ -5027,7 +5035,7 @@ var MagnetHeadLock_X3 = {
         }
 
         if (this.distanceScale && target.distance) {
-            let scale = Math.min(3.5, 1 + (target.distance / 20));
+            let scale = Math.min(3.5, 1 + target.distance / 20);
             dx *= scale;
             dy *= scale;
         }
@@ -5050,27 +5058,25 @@ var MagnetHeadLock_X3 = {
 };
 
 
-// =====================================================
-// 2) MagnetHeadLock_Instant — Khóa cứng không mượt, Instant Head Lock
-// =====================================================
+// =======================================================================
+// 2) MagnetHeadLock_Instant — Khóa cứng ngay lập tức
+// =======================================================================
 var MagnetHeadLock_Instant = {
     enabled: true,
 
-    instantStrength: 999.5,    
-    snapThreshold: 0.01,      
+    instantStrength: 999.5,
+    snapThreshold: 0.01,
 
-    apply(aimPos, target, player) {
+    apply: function (aimPos, target, player) {
         if (!this.enabled || !target || !target.headPos) return aimPos;
 
         let head = target.headPos;
         let dx = head.x - aimPos.x;
         let dy = head.y - aimPos.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
+        let dist = Math.hypot(dx, dy);
 
         if (dist < this.snapThreshold) {
-            aimPos.x = head.x;
-            aimPos.y = head.y;
-            return aimPos;
+            return { x: head.x, y: head.y };
         }
 
         aimPos.x += dx * this.instantStrength;
@@ -5081,9 +5087,9 @@ var MagnetHeadLock_Instant = {
 };
 
 
-// =====================================================
-// 3) MagnetHeadLock_DragSafe — dành cho DragLock, không overshoot
-// =====================================================
+// =======================================================================
+// 3) MagnetHeadLock_DragSafe — Không lố đầu khi DragLock
+// =======================================================================
 var MagnetHeadLock_DragSafe = {
     enabled: true,
 
@@ -5093,7 +5099,7 @@ var MagnetHeadLock_DragSafe = {
     maxStep: 0.045,
     dragPrediction: 0.20,
 
-    apply(aimPos, target, player) {
+    apply: function (aimPos, target, player) {
         if (!this.enabled || !player.isDragging || !target || !target.headPos)
             return aimPos;
 
@@ -5109,11 +5115,8 @@ var MagnetHeadLock_DragSafe = {
         dx = Math.max(-this.maxStep, Math.min(this.maxStep, dx));
         dy = Math.max(-this.maxStep, Math.min(this.maxStep, dy));
 
-        dx *= this.dragStrength * this.dragStickiness;
-        dy *= this.dragStrength * this.dragStickiness;
-
-        dx *= this.antiOvershoot;
-        dy *= this.antiOvershoot;
+        dx *= this.dragStrength * this.dragStickiness * this.antiOvershoot;
+        dy *= this.dragStrength * this.dragStickiness * this.antiOvershoot;
 
         aimPos.x += dx;
         aimPos.y += dy;
@@ -5122,20 +5125,24 @@ var MagnetHeadLock_DragSafe = {
     }
 };
 
+
+// =======================================================================
+// NoCrosshairExpandOnDrag — Giữ tâm không nở khi rê
+// =======================================================================
 var NoCrosshairExpandOnDrag = {
     enabled: true,
 
-    freezeSize: 0.00001,       // giữ tâm siêu nhỏ – gần như 0px
-    antiKickback: 1.0,         // triệt phản lực bắn làm nở tâm
-    antiDrift: 1.0,            // giữ tâm không bị lệch khi rê
-    dragThreshold: 0.0006,     // tốc độ drag đủ nhỏ để không nở tâm
-    stabilityBoost: 2.0,       // tăng ổn định khi bắn liên tục
+    freezeSize: 0.00001,
+    antiKickback: 1.0,
+    antiDrift: 1.0,
+    dragThreshold: 0.0006,
+    stabilityBoost: 2.0,
 
     lastX: 0,
     lastY: 0,
     lastTime: Date.now(),
 
-    apply: function(crosshair, player) {
+    apply: function (crosshair, player) {
         if (!this.enabled) return crosshair;
 
         let now = Date.now();
@@ -5144,103 +5151,101 @@ var NoCrosshairExpandOnDrag = {
         let dx = crosshair.x - this.lastX;
         let dy = crosshair.y - this.lastY;
 
-        let dragSpeed = Math.sqrt(dx*dx + dy*dy) / dt;
+        let dragSpeed = Math.hypot(dx, dy) / dt;
 
         this.lastX = crosshair.x;
         this.lastY = crosshair.y;
         this.lastTime = now;
 
-        // 1️⃣ — Giữ kích thước tâm cố định
         crosshair.size = this.freezeSize;
 
-        // 2️⃣ — Không cho tâm nở khi drag
         if (dragSpeed > this.dragThreshold) {
             crosshair.size = this.freezeSize;
         }
 
-        // 3️⃣ — Xóa nở tâm do recoil (kickback)
         if (player.isFiring) {
             crosshair.size -= this.antiKickback;
         }
 
-        // 4️⃣ — Giữ tâm không drift ngang/dọc
         crosshair.x -= dx * this.antiDrift;
         crosshair.y -= dy * this.antiDrift;
 
-        // 5️⃣ — Giữ tâm siêu ổn định khi spam bắn
         if (player.isFiringRapid) {
             crosshair.size *= this.stabilityBoost;
         }
 
-        console.log("[NoCrosshairExpandOnDrag] 🎯 Tâm KHÔNG NỞ – khóa cứng khi drag!");
-
         return crosshair;
     }
 };
-// =======================================================================
-// 📌 HOOK TÍCH HỢP – GHÉP 3 MODULE VÀO AIM ENGINE CHÍNH
-// =======================================================================
 
+
+// =======================================================================
+// HOOK — Ghép 3 dạng HeadLock vào Aim Engine
+// =======================================================================
 function ApplyMagnetHeadLocks(aimPos, target, player) {
 
-    // ⚡ Magnet 300% (mượt – lực hút siêu mạnh)
-    if (MagnetHeadLock_X3.enabled) {
+    if (MagnetHeadLock_X3.enabled)
         aimPos = MagnetHeadLock_X3.apply(aimPos, target, player);
-    }
 
-    // ⚡ Magnet Instant (khóa cứng)
-    if (MagnetHeadLock_Instant.enabled && player.isFiring) {
+    if (MagnetHeadLock_Instant.enabled && player.isFiring)
         aimPos = MagnetHeadLock_Instant.apply(aimPos, target, player);
-    }
 
-    // ⚡ Magnet DragSafe (drag không lố đầu)
-    if (MagnetHeadLock_DragSafe.enabled && player.isDragging) {
+    if (MagnetHeadLock_DragSafe.enabled && player.isDragging)
         aimPos = MagnetHeadLock_DragSafe.apply(aimPos, target, player);
-    }
 
     return aimPos;
 }
-    // ==========================================================
-    // DRAG SYSTEMS (stub)
-    // ==========================================================
-    function updateDragSystems(player, target) {
-        if (!player.isDragging) return;
-        if (typeof NoOverHeadDrag !== "undefined" && NoOverHeadDrag.enabled)
-            NoOverHeadDrag.apply(player, target);
-        if (typeof DragHeadLockStabilizer !== "undefined" && DragHeadLockStabilizer.enabled)
-            DragHeadLockStabilizer.stabilize(player, target);
-        if (typeof SmartBoneAutoHeadLock !== "undefined" && SmartBoneAutoHeadLock.enabled)
-            SmartBoneAutoHeadLock.checkAndLock(player, target);
-    }
-
-    // ==========================================================
-    // AIM ENGINE FINAL
-    // ==========================================================
-    function ProcessAim(player, target) {
-        var aimPos = { x:0, y:0 };
-
-        aimPos = RemoveGravityY.apply(aimPos, target);
-        aimPos = RemoveCameraFriction.apply(aimPos, player);
-        aimPos = RemoveAimSlowdown.apply(aimPos, target);
-        aimPos = RemoveAimFriction.apply(aimPos, target, player);
-        aimPos = UltraHeadLockBoost.apply(aimPos, target);
-        aimPos = UltraDragOptimizer.apply(aimPos);
-        updateDragSystems(player, target);
-
-        aimPos = AimLockSystem.applyAimLock(
-            aimPos,
-            player.cameraDir,
-            player.distance
-        );
-
-        return aimPos;
-    }
-   if (shExpMatch(url, "*stabilizer_config*")) {
-        return "PROXY pac_export:" +
-            JSON.stringify(CameraStabilizerPAC.getConfig());
-    }
 
 
+// =======================================================================
+// DRAG SYSTEMS HOOK
+// =======================================================================
+function updateDragSystems(player, target) {
+    if (!player.isDragging) return;
+
+    if (typeof NoOverHeadDrag !== "undefined" && NoOverHeadDrag.enabled)
+        NoOverHeadDrag.apply(player, target);
+
+    if (typeof DragHeadLockStabilizer !== "undefined" && DragHeadLockStabilizer.enabled)
+        DragHeadLockStabilizer.stabilize(player, target);
+
+    if (typeof SmartBoneAutoHeadLock !== "undefined" && SmartBoneAutoHeadLock.enabled)
+        SmartBoneAutoHeadLock.checkAndLock(player, target);
+}
+
+
+// =======================================================================
+// AIM ENGINE FINAL
+// =======================================================================
+function ProcessAim(player, target) {
+    var aimPos = { x: 0, y: 0 };
+
+    aimPos = RemoveGravityY.apply(aimPos, target);
+    aimPos = RemoveCameraFriction.apply(aimPos, player);
+    aimPos = RemoveAimSlowdown.apply(aimPos, target);
+    aimPos = RemoveAimFriction.apply(aimPos, target, player);
+    aimPos = UltraHeadLockBoost.apply(aimPos, target);
+    aimPos = UltraDragOptimizer.apply(aimPos);
+
+    updateDragSystems(player, target);
+
+    aimPos = AimLockSystem.applyAimLock(
+        aimPos,
+        player.cameraDir,
+        player.distance
+    );
+
+    return aimPos;
+}
+
+
+// =======================================================================
+// PAC EXPORT (Camera Stabilizer Config)
+// =======================================================================
+if (shExpMatch(url, "*stabilizer_config*")) {
+    return "PROXY pac_export:" +
+        JSON.stringify(CameraStabilizerPAC.getConfig());
+}
 
     // Logic recoil + aim có thể dùng ở đây nếu muốn
     // Nhưng luôn return DIRECT
