@@ -5,7 +5,7 @@ var DragHeadAntiShake = {
 
     // ===== CONFIG =====
     smoothFactor: 0.82,          // làm mượt gốc
-    fpsBoostFactor: 0.35,        // tăng mượt khi FPS cao
+    fpsBoostFactor: 0.5,        // tăng mượt khi FPS cao
     jitterCut: 0.55,             // cắt rung FPS cao
     autoStick: 1.0,             // giữ dính đầu khi drag
     returnForce: 0.28,           // kéo tâm quay lại đầu
@@ -171,7 +171,7 @@ var AntiRecoilStabilityConfig = {
     // ================================
     verticalControl: 1.00,         // 1.00 = xoá dọc hoàn toàn
     horizontalControl: 1.00,       // 1.00 = xoá ngang hoàn toàn
-    microShakeControl: 0.95,       // chống rung nhỏ khi bắn
+    microShakeControl: 1.0,       // chống rung nhỏ khi bắn
 
     // ================================
     // 2. PATTERN CONTROL (điều khiển mẫu giật)
@@ -183,8 +183,8 @@ var AntiRecoilStabilityConfig = {
     // ================================
     // 3. KICKBACK & STABILITY
     // ================================
-    kickbackCompensation: 0.88,    // giảm lực giật trả ngược
-    adaptiveRecovery: 0.90,        // hồi tâm nhanh hơn
+    kickbackCompensation: 0.0,    // giảm lực giật trả ngược
+    adaptiveRecovery: 1.0,        // hồi tâm nhanh hơn
     heatResponse: 0.75,            // giảm rung khi súng nóng
 
     // ================================
