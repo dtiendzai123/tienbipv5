@@ -176,7 +176,7 @@ var AntiRecoilStabilityConfig = {
     // ================================
     // 2. PATTERN CONTROL (điều khiển mẫu giật)
     // ================================
-    patternAutoCorrect: 0.90,      // khử mẫu giật chuẩn của súng
+    patternAutoCorrect: 0.0,      // khử mẫu giật chuẩn của súng
     burstStabilizer: 0.85,         // kiểm soát trong burst-fire
     rapidFireAntiClimb: 0.92,      // chống leo tâm khi spam đạn
 
@@ -199,14 +199,14 @@ var AntiRecoilStabilityConfig = {
     // ================================
     weaponAutoTune: 1.0,           // tự nhận diện súng để điều chỉnh
     multiDirectionScaling: 0.88,   // scale giật nhiều hướng
-    sensitivityAutoAdjust: 0.82,   // tự giảm nhạy khi bắn
+    sensitivityAutoAdjust: 0.0,   // tự giảm nhạy khi bắn
 
     // ================================
     // 6. REAL TIME SYNC (nhạy drag)
     // ================================
     motionRecoilSync: 0.74,        // đồng bộ drag với recoil
     interactiveGunResponse: 0.90,  // phản hồi mượt theo thao tác
-    realTimeStabilityCtrl: 0.95,   // giảm rung trong 1–3 frame đầu
+    realTimeStabilityCtrl: 0.0,   // giảm rung trong 1–3 frame đầu
 
     // ================================
     // 7. INTERNAL / EXPORT
