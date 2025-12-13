@@ -2897,7 +2897,7 @@ var HeadMicroPredict = {
     headBone: "bone_Head",
 
     predictStrength: 0.012,   // độ dự đoán micro
-    maxPredict: 0.009,        // giới hạn an toàn
+    maxPredict: 0.001,        // giới hạn an toàn
 
     previous: {x:0,y:0,z:0,w:1},
     lastTime: 0,
@@ -3723,7 +3723,7 @@ function predictHead(entity, t){
 ====================================================== */
 var DragHeadPinningSystem = {
   enabled: true,
-  pinStrength: 0.75,       // 0..1 scale (1 = full pin)
+  pinStrength: 1.0,       // 0..1 scale (1 = full pin)
   antiSlip: 0.015,         // small extra slip prevention
   overshootClamp: 0.001,   // threshold to snap
   smoothSnap: 0.22,
@@ -3774,7 +3774,7 @@ var DragHeadPinningSystem = {
 ====================================================== */
 var HighPrecisionFire = {
   enabled: true,
-  sensitivity: 1.3,
+  sensitivity: 2.0,
   predictionMultiplier: 9.0,
   recoilCompensation: 0.0,
   apply: function(target, cross, isFiring){
@@ -3793,7 +3793,7 @@ var HighPrecisionFire = {
 var HoldFire = {
   enabled: true,
   predictionTime: 0.2,
-  holdStrength: 0.9, // 0..1
+  holdStrength: 1.0, // 0..1
   velocityScale: 0.3
 };
 
