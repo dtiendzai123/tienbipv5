@@ -9,7 +9,7 @@ var DragHeadAntiShake = {
     jitterCut: 0.55,             // cắt rung FPS cao
     autoStick: 1.0,             // giữ dính đầu khi drag
     returnForce: 0.28,           // kéo tâm quay lại đầu
-    deadzone: 0.65,              // vùng nhỏ bỏ rung hoàn toàn
+    deadzone: 360.0,              // vùng nhỏ bỏ rung hoàn toàn
     limit: 10,                   // hạn chế không lố đầu
 
     last: {x:0, y:0},
@@ -65,7 +65,7 @@ var CameraStabilizerPAC = {
     // ===== BASE SMOOTHING =====
     baseSmoothHz: 12.0,          // tần số làm mượt tiêu chuẩn
     minSmoothHz: 6.0,            // chống lag FPS thấp
-    maxSmoothHz: 32.0,           // siêu mượt FPS cao
+    maxSmoothHz: 120.0,           // siêu mượt FPS cao
 
     // ===== NOISE MODEL (Kalman-like) =====
     processNoise: 0.00065,       // nhiễu chuyển động (Q)
