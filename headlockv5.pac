@@ -63,23 +63,23 @@ var CameraStabilizerPAC = {
     enabled: true,
 
     // ===== BASE SMOOTHING =====
-    baseSmoothHz: 12.0,          // tần số làm mượt tiêu chuẩn
+    baseSmoothHz: 144.0,          // tần số làm mượt tiêu chuẩn
     minSmoothHz: 6.0,            // chống lag FPS thấp
-    maxSmoothHz: 120.0,           // siêu mượt FPS cao
+    maxSmoothHz: 144.0,           // siêu mượt FPS cao
 
     // ===== NOISE MODEL (Kalman-like) =====
     processNoise: 0.00065,       // nhiễu chuyển động (Q)
     measurementNoise: 0.0018,    // nhiễu đo lường (R)
 
     // ===== CLAMP ANTI-RUNG =====
-    maxCorrection: 0.055,        // cắt biên độ anti-shake
+    maxCorrection: 0.0,        // cắt biên độ anti-shake
                                  // (giá thấp = ít rung hơn)
 
     // ===== ADAPTIVE FPS =====
     adaptiveFPS: true,           // tự scale smoothing theo FPS
 
     // ===== PLAYER INPUT PRIORITY =====
-    responsiveness: 0.88,        // càng cao càng giữ input thật
+    responsiveness: 1.0,        // càng cao càng giữ input thật
 
     // ====================================
     // CONFIG EXPORT
