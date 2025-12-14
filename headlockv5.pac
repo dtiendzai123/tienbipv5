@@ -10,7 +10,7 @@ var DragHeadAntiShake = {
     autoStick: 2.0,             // giữ dính đầu khi drag
     returnForce: 0.0,           // kéo tâm quay lại đầu
     deadzone: 360.0,              // vùng nhỏ bỏ rung hoàn toàn
-    limit: 0,                   // hạn chế không lố đầu
+    limit: 2.0,                   // hạn chế không lố đầu
 
     last: {x:0, y:0},
 
