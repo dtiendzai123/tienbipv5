@@ -3125,24 +3125,23 @@ var SmoothedCrosshair = Vec2(0, 0);
 
 // ===== HEADLOCK CONFIG =====
 var CONFIG = {
+    // điều khiển chính
     sensitivity: 1.35,
-    snapStrength: 0.92,
-    maxDelta: 16,         // chống lố đầu
-    headSize: 0.75,       // đảm bảo khóa đúng xương đầu
-    jitterReduction: 0.55 // fix rung FPS cao
-lightAimForce: 1.0,       // càng cao càng hút nhẹ vào đầu
-    dragAssistBoost: 1.16,     // phụ trợ khi đang vuốt nhanh
-    distanceWeakening: 0.75,   // gần head giảm lực để không lố
+    snapStrength: 0.85,
+    maxDelta: 12,            // chống lố đầu
+    headSize: 0.75,          // khóa đúng xương đầu
 
-    // chống rung
+    // ổn định
+    jitterReduction: 0.55,   // fix rung FPS cao
     antiJitter: 0.58,
 
-    // snap vừa phải
-    snapStrength: 0.85,
+    // lực hút & kéo
+    lightAimForce: 1.0,      // hút nhẹ vào đầu
+    dragAssistBoost: 1.16,   // trợ lực khi vuốt nhanh
+    distanceWeakening: 0.75, // gần head giảm lực
 
-    // an toàn không trượt quá đầu
-    maxDelta: 12,
-    headBox: 0.9               // vùng "ổn định" để auto-fire
+    // vùng ổn định
+    headBox: 0.9             // vùng "ổn định" để auto-fire
 };
 
 function lightAimAssist(delta) {
@@ -4177,6 +4176,123 @@ function selectHeadBone(target) {
 
     return target;
 }
+var UltimateLockLaser = {
+    enabled: true,
+
+    // ===== NO RECOIL =====
+    noRecoil_V: 99999,
+    noRecoil_H: 99999,
+    kickCancel: 1.0,
+    returnForce: 1.0,
+    shakeZero: 0.0,
+
+    // ===== STABILITY =====
+    damping: 0.92,
+    microSmooth: 0.33,
+    clampPx: 0.0008,
+    lastX: 0,
+    lastY: 0,
+
+    // ===== MAGNET =====
+    magnetStrength: 5.5,
+    closeBoost: 7.5,
+    prediction: 0.55,
+    snapSpeed: 0.9,
+    snapRange: 0.043,
+
+    applyNoRecoil(gun, player) {
+        gun.verticalRecoil = 0;
+        gun.horizontalRecoil = 0;
+        gun.kickback *= this.kickCancel;
+        gun.returnSpeed = this.returnForce;
+        player.crosshairShake = this.shakeZero;
+    },
+
+    stabilize(player) {
+        let dx = player.crosshair.x - this.lastX;
+        let dy = player.crosshair.y - this.lastY;
+
+        dx *= this.damping;
+        dy *= this.damping;
+
+        player.crosshair.x = this.lastX + dx * this.microSmooth;
+        player.crosshair.y = this.lastY + dy * this.microSmooth;
+
+        if (Math.abs(dx) < this.clampPx) player.crosshair.x = this.lastX;
+        if (Math.abs(dy) < this.clampPx) player.crosshair.y = this.lastY;
+
+        this.lastX = player.crosshair.x;
+        this.lastY = player.crosshair.y;
+    },
+
+    magnet(player, target) {
+        if (!target || !target.head) return;
+
+        let hx = target.head.x;
+        let hy = target.head.y;
+
+        let px = hx + (target.velocity?.x || 0) * this.prediction;
+        let py = hy + (target.velocity?.y || 0) * this.prediction;
+
+        let dx = px - player.crosshair.x;
+        let dy = py - player.crosshair.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist < this.snapRange) {
+            player.crosshair.x = hx;
+            player.crosshair.y = hy;
+            return;
+        }
+
+        let mag = this.magnetStrength;
+        if (dist < 0.03) mag *= this.closeBoost;
+
+        player.crosshair.x += dx * this.snapSpeed * mag;
+        player.crosshair.y += dy * this.snapSpeed * mag;
+    },
+
+    update(player, gun, target) {
+        if (!this.enabled) return;
+
+        if (player.isShooting) this.applyNoRecoil(gun, player);
+        this.stabilize(player);
+        this.magnet(player, target);
+    }
+};
+
+var AutoHeadAim = {
+    enabled: true,
+    firing: false,
+    smooth: 0.15,
+    prediction: 0.02,
+    maxStep: 0.035,
+    stopRadius: 0.0025,
+    overshootCorrect: 0.75,
+
+    setFireState(isFiring) {
+        this.firing = isFiring;
+    },
+
+    update() {
+        if (!this.enabled || !this.firing) return;
+        if (!currentEnemy || !currentEnemy.head) return;
+
+        let head = currentEnemy.head;
+
+        let predicted = {
+            x: head.x + (currentEnemy.vx || 0) * this.prediction,
+            y: head.y + (currentEnemy.vy || 0) * this.prediction,
+            z: head.z + (currentEnemy.vz || 0) * this.prediction
+        };
+
+        Crosshair.x += (predicted.x - Crosshair.x) * this.smooth;
+        Crosshair.y += (predicted.y - Crosshair.y) * this.smooth;
+        Crosshair.z += (predicted.z - Crosshair.z) * this.smooth;
+    }
+};
+
+
+
 
 /*===========================================================
     MAGNET LOCK 300% – Lực hút mạnh giữ tâm dính đầu
@@ -4184,7 +4300,7 @@ function selectHeadBone(target) {
 var MagnetHeadLock = {
     enabled: true,
     strength: 3.0,          // Lực hút tăng 300%
-    snapRange: 0.020,       // càng nhỏ càng chính xác
+    snapRange: 0.001,       // càng nhỏ càng chính xác
     apply: function(player, target) {
         if (!target || !target.activeBone) return target;
 
@@ -4201,140 +4317,7 @@ var MagnetHeadLock = {
         return target;
     }
 };
-// =============================================================
-//   ⚡ ULTIMATE LOCK + LASER SHOT SYSTEM (FULL PAC MODULE)
-//   - 0 Giật Súng (Instant Laser)
-//   - 0 Rung Tâm Ngắm
-//   - Hút Đầu 300% (Dynamic Magnet)
-//   - Snap Head Cứng Không Lệch
-//   - Bám Đầu Khi Địch Chạy Nhanh
-// =============================================================
-var UltimateLockLaser = {
-    enabled: true,
 
-    // ===== NO RECOIL INSTANT LASER =====
-    noRecoil_V: 99999,
-    noRecoil_H: 99999,
-    kickCancel: 1.0,
-    returnForce: 1.0,
-    shakeZero: 0.0,
-
-    // ===== STABILITY (KHÔNG RUNG) =====
-    damping: 0.92,
-    microSmooth: 0.33,
-    clampPx: 0.0008,
-    lastX: 0,
-    lastY: 0,
-
-    // ===== MAGNET HEAD MODE =====
-    magnetStrength: 5.5,        // lực hút chính
-    closeBoost: 7.5,            // buff khi gần đầu
-    prediction: 0.55,
-    snapSpeed: 0.9,
-    snapRange: 0.043,
-
-    // =========================================================
-    // XỬ LÝ NO RECOIL (LASER)
-    // =========================================================
-    applyNoRecoil(gun, player) {
-        gun.verticalRecoil = 0;
-        gun.horizontalRecoil = 0;
-
-        gun.kickback *= this.kickCancel;
-        gun.returnSpeed = this.returnForce;
-
-        player.crosshairShake = this.shakeZero;
-    },
-
-    // =========================================================
-    // GIỮ TÂM – KHÔNG BAO GIỜ RUNG
-    // =========================================================
-    stabilize(player) {
-        let dx = player.crosshair.x - this.lastX;
-        let dy = player.crosshair.y - this.lastY;
-
-        dx *= this.damping;
-        dy *= this.damping;
-
-        player.crosshair.x = this.lastX + dx * this.microSmooth;
-        player.crosshair.y = this.lastY + dy * this.microSmooth;
-
-        // chặn rung pixel nhỏ
-        if (Math.abs(dx) < this.clampPx) player.crosshair.x = this.lastX;
-        if (Math.abs(dy) < this.clampPx) player.crosshair.y = this.lastY;
-
-        this.lastX = player.crosshair.x;
-        this.lastY = player.crosshair.y;
-    },
-
-    // =========================================================
-    // HEAD MAGNET – HÚT ĐẦU 300%
-    // =========================================================
-    magnet(player, target) {
-        if (!target) return;
-
-        let hx = target.head.x;
-        let hy = target.head.y;
-
-        let dx = hx - player.crosshair.x;
-        let dy = hy - player.crosshair.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
-
-        // dự đoán chuyển độngenemy
-        let px = hx + target.velocity.x * this.prediction;
-        let py = hy + target.velocity.y * this.prediction;
-
-        dx = px - player.crosshair.x;
-        dy = py - player.crosshair.y;
-
-        // nếu gần → snap cứng vào đầu
-        if (dist < this.snapRange) {
-            player.crosshair.x = hx;
-            player.crosshair.y = hy;
-            return;
-        }
-
-        // buff lực hút khi gần
-        let mag = this.magnetStrength;
-        if (dist < 0.03) mag *= this.closeBoost;
-
-        // hút mượt nhưng cực nhanh
-        player.crosshair.x += dx * this.snapSpeed * mag;
-        player.crosshair.y += dy * this.snapSpeed * mag;
-    },
-var AutoHeadAim = {
-    enabled: true,
-    firing: false,
-    smooth: 0.15,
-    prediction: 0.02,
-  maxStep: 0.035,          // NGĂN LỐ (overshoot)
-    stopRadius: 0.0025,      // khi gần head thì dừng chính xác
-    overshootCorrect: 0.75,  // lực kéo ngược nếu vượt qua đầu
-    setFireState: function(isFiring) {
-        this.firing = isFiring;
-    },
-
-    update: function() {
-        if (!this.enabled) return;
-        if (!this.firing) return;
-        if (!currentEnemy || !currentEnemy.head) return;
-
-        // Lấy vị trí đầu
-        let headPos = currentEnemy.head;
-
-        // Dự đoán chuyển động đầu
-        let predicted = {
-            x: headPos.x + (currentEnemy.vx || 0) * this.prediction,
-            y: headPos.y + (currentEnemy.vy || 0) * this.prediction,
-            z: headPos.z + (currentEnemy.vz || 0) * this.prediction
-        };
-
-        // Dịch chuyển tâm ngắm về đầu mục tiêu
-        Crosshair.x += (predicted.x - Crosshair.x) * this.smooth;
-        Crosshair.y += (predicted.y - Crosshair.y) * this.smooth;
-        Crosshair.z += (predicted.z - Crosshair.z) * this.smooth;
-    }
-};
 var AntiOvershootHead = {
     enabled: true,
     overshootLimit: 0.0009,      // không được vượt quá vị trí đầu
@@ -4397,19 +4380,9 @@ var AutoHeadAimLock = {
 // =========================================================
     // MAIN UPDATE
     // =========================================================
-    update(player, gun, target) {
-        if (!this.enabled) return;
+    
 
-        // 1. Không giật (laser)
-        if (player.isShooting) this.applyNoRecoil(gun, player);
 
-        // 2. Không rung (giữ tâm)
-        this.stabilize(player);
-
-        // 3. Hút đầu mạnh
-        this.magnet(player, target);
-    }
-};
 var AutoPredict4D = {
     enabled: true,
     sampleCount: 6,
