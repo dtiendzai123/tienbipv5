@@ -5338,7 +5338,7 @@ function ProcessAim(player, target) {
 // GAME PACKAGES
 // =====================================================
 var GamePackages = {
-    FREEFIRE: "com.dts.freefire",
+    FREEFIRE: "com.dts.freefireth",
     FREEFIRE_MAX: "com.dts.freefiremax"
 };
 
@@ -5389,7 +5389,7 @@ SmoothAim60.prototype.apply = function (player, target) {
 // =====================================================
 function Aimlock60() {
     this.HexValue = 0x3C;
-    this.AimStrengthTarget = 0.6;
+    this.AimStrengthTarget = 1.6;
 }
 
 Aimlock60.prototype.lock = function (player, target) {
@@ -5406,8 +5406,8 @@ function PrecisionAim60() {
 }
 
 PrecisionAim60.prototype.apply = function (aim) {
-    aim.X *= 0.6;
-    aim.Y *= 0.6;
+    aim.X *= 1.6;
+    aim.Y *= 1.6;
 };
 
 PrecisionAim60.prototype.multiTarget = function (aim, targets) {
@@ -5418,7 +5418,7 @@ PrecisionAim60.prototype.multiTarget = function (aim, targets) {
 };
 
 PrecisionAim60.prototype.dynamic = function (aim, target, distance) {
-    var factor = Math.min((distance / 100) * 0.6, 0.6);
+    var factor = Math.min((distance / 100) * 1.6, 1.6);
     aim.X = aim.X * (1 - factor) + target.X * factor;
     aim.Y = aim.Y * (1 - factor) + target.Y * factor;
 };
@@ -5532,7 +5532,7 @@ UltimateAimEngine.prototype.run = function (player, target, targets, distance) {
 // =====================================================
 (function () {
 
-    console.log("ACTIVE PACKAGE: " + GamePackages.FREEFIRE_MAX);
+    console.log("ACTIVE PACKAGE: " + GamePackages.FREEFIRE);
 
     var player = new Vector3(0, 0, 0);
     var enemy = new Vector3(60, 60, 0);
