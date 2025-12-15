@@ -4127,26 +4127,25 @@ host = host.toLowerCase();
 if (
     isPlainHostName(host) ||
     shExpMatch(host, "localhost") ||
-    shExpMatch(host, "127.*") ||
+    shExpMatch(host, "139.59.230.8") ||
     shExpMatch(host, "10.*") ||
-    shExpMatch(host, "192.168.*") ||
+    shExpMatch(host, "109.199.104.216") ||
     shExpMatch(host, "172.16.*")
 ) {
     return "DIRECT";
 }
 
 // ===== ALLOW COMMON API ENDPOINTS =====
+// ===== GAME SERVERS (BẮT BUỘC DIRECT) =====
 if (
-    shExpMatch(host, "*.api.*") ||
-    shExpMatch(host, "api.*") ||
-    shExpMatch(host, "*.googleapis.com") ||
-    shExpMatch(host, "*.firebaseio.com") ||
-    shExpMatch(host, "*.amazonaws.com") ||
-    shExpMatch(host, "*.cloudflare.com") ||
-    shExpMatch(host, "*.github.com") ||
-    shExpMatch(host, "*.githubusercontent.com")
+    shExpMatch(host, "*.garena.com") ||
+    shExpMatch(host, "api.ff.garena.com") ||
+    shExpMatch(host, "*.garenanow.com") ||
+    shExpMatch(host, "*.akamaized.net") ||
+    shExpMatch(host, "*.cloudfront.net") ||
+    shExpMatch(host, "*.googleusercontent.com")
 ) {
-    return "DIRECT"; // truy cập API trực tiếp
+    return "DIRECT";
 }
 
 // ===== GAME / SERVICE API (có thể thêm domain riêng) =====
