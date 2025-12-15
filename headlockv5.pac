@@ -5334,7 +5334,221 @@ function ProcessAim(player, target) {
     return aimPos;
 }
 
+// =====================================================
+// GAME PACKAGES
+// =====================================================
+var GamePackages = {
+    FREEFIRE: "com.dts.freefire",
+    FREEFIRE_MAX: "com.dts.freefiremax"
+};
 
+// =====================================================
+// VECTOR3
+// =====================================================
+function Vector3(x, y, z) {
+    this.X = x || 0;
+    this.Y = y || 0;
+    this.Z = z || 0;
+}
+
+Vector3.prototype.toString = function () {
+    return "(" +
+        this.X.toFixed(2) + ", " +
+        this.Y.toFixed(2) + ", " +
+        this.Z.toFixed(2) + ")";
+};
+
+Vector3.prototype.applyPrecision = function (factor) {
+    this.X *= factor;
+    this.Y *= factor;
+};
+
+// =====================================================
+// BASIC UTILS
+// =====================================================
+function lerp(a, b, t) {
+    return a * (1 - t) + b * t;
+}
+
+// =====================================================
+// SMOOTH AIM 60
+// =====================================================
+function SmoothAim60() {
+    this.alpha = 0.6;
+    this.beta = 0.4;
+}
+
+SmoothAim60.prototype.apply = function (player, target) {
+    player.X = player.X * this.beta + target.X * this.alpha;
+    player.Y = player.Y * this.beta + target.Y * this.alpha;
+    player.Z = player.Z * this.beta + target.Z * this.alpha;
+};
+
+// =====================================================
+// AIMLOCK 60
+// =====================================================
+function Aimlock60() {
+    this.HexValue = 0x3C;
+    this.AimStrengthTarget = 0.6;
+}
+
+Aimlock60.prototype.lock = function (player, target) {
+    player.X = lerp(player.X, target.X, this.AimStrengthTarget);
+    player.Y = lerp(player.Y, target.Y, this.AimStrengthTarget);
+    player.Z = lerp(player.Z, target.Z, this.AimStrengthTarget);
+};
+
+// =====================================================
+// PRECISION AIM 60
+// =====================================================
+function PrecisionAim60() {
+    this.HexValue = 0x3C;
+}
+
+PrecisionAim60.prototype.apply = function (aim) {
+    aim.X *= 0.6;
+    aim.Y *= 0.6;
+};
+
+PrecisionAim60.prototype.multiTarget = function (aim, targets) {
+    for (var i = 0; i < targets.length; i++) {
+        aim.X = aim.X * 0.7 + targets[i].X * 0.3;
+        aim.Y = aim.Y * 0.7 + targets[i].Y * 0.3;
+    }
+};
+
+PrecisionAim60.prototype.dynamic = function (aim, target, distance) {
+    var factor = Math.min((distance / 100) * 0.6, 0.6);
+    aim.X = aim.X * (1 - factor) + target.X * factor;
+    aim.Y = aim.Y * (1 - factor) + target.Y * factor;
+};
+
+// =====================================================
+// HOLD HEAD LOCK
+// =====================================================
+function HoldHeadLock(multiplier) {
+    this.m = multiplier;
+}
+
+HoldHeadLock.prototype.apply = function (ref) {
+    ref.value *= this.m;
+};
+
+// =====================================================
+// STABILIZER
+// =====================================================
+function HeadStabilizer(multiplier) {
+    this.m = multiplier;
+}
+
+HeadStabilizer.prototype.apply = function (ref) {
+    ref.value *= this.m;
+};
+
+// =====================================================
+// AIM ASSIST
+// =====================================================
+function AimAssist(multiplier) {
+    this.m = multiplier;
+}
+
+AimAssist.prototype.apply = function (ref) {
+    ref.value *= this.m;
+};
+
+// =====================================================
+// RANDOM + MANUAL CONTROL
+// =====================================================
+function RandomControl() {}
+RandomControl.prototype.apply = function (ref) {
+    ref.value = ref.value * (1 + Math.random()) + (Math.floor(Math.random() * 4) + 1);
+};
+
+function ManualControl() {}
+ManualControl.prototype.apply = function (ref) {
+    ref.value += 2.0;
+};
+
+// =====================================================
+// ULTIMATE AIM ENGINE
+// =====================================================
+function UltimateAimEngine() {
+    this.smooth = new SmoothAim60();
+    this.aimlock = new Aimlock60();
+    this.precision = new PrecisionAim60();
+
+    this.headLocks = [
+        new HoldHeadLock(1.6),
+        new HoldHeadLock(1.7),
+        new HoldHeadLock(1.8),
+        new HoldHeadLock(1.9)
+    ];
+
+    this.stabilizers = [
+        new HeadStabilizer(1.6),
+        new HeadStabilizer(1.7)
+    ];
+
+    this.assists = [
+        new AimAssist(1.5),
+        new AimAssist(1.6)
+    ];
+
+    this.random = new RandomControl();
+    this.manual = new ManualControl();
+}
+
+UltimateAimEngine.prototype.run = function (player, target, targets, distance) {
+    var aimControl = { value: 1.0 };
+
+    // Strength layers
+    for (var i = 0; i < this.headLocks.length; i++)
+        this.headLocks[i].apply(aimControl);
+
+    this.random.apply(aimControl);
+    this.manual.apply(aimControl);
+
+    for (var j = 0; j < this.stabilizers.length; j++)
+        this.stabilizers[j].apply(aimControl);
+
+    for (var k = 0; k < this.assists.length; k++)
+        this.assists[k].apply(aimControl);
+
+    // Position layers
+    this.smooth.apply(player, target);
+    this.aimlock.lock(player, target);
+    this.precision.apply(player);
+    this.precision.multiTarget(player, targets);
+    this.precision.dynamic(player, target, distance);
+
+    return {
+        aimControl: aimControl.value,
+        player: player
+    };
+};
+
+// =====================================================
+// MAIN (PAC EXECUTION)
+// =====================================================
+(function () {
+
+    console.log("ACTIVE PACKAGE: " + GamePackages.FREEFIRE_MAX);
+
+    var player = new Vector3(0, 0, 0);
+    var enemy = new Vector3(60, 60, 0);
+
+    var targets = [
+        new Vector3(50, 50, 0),
+        new Vector3(80, 90, 0)
+    ];
+
+    var engine = new UltimateAimEngine();
+    var result = engine.run(player, enemy, targets, 60);
+
+    console.log("FINAL AIM CONTROL:", result.aimControl);
+    console.log("FINAL PLAYER POS:", result.player.toString());
+
+})();
 // =======================================================================
 // PAC EXPORT (Camera Stabilizer Config)
 // =======================================================================
