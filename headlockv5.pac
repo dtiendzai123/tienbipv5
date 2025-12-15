@@ -4122,6 +4122,52 @@ function HookCrosshairBloom() {
 
 
 function FindProxyForURL(url, host) {
+host = host.toLowerCase();
+// ===== ALLOW LOCAL / SYSTEM =====
+if (
+    isPlainHostName(host) ||
+    shExpMatch(host, "localhost") ||
+    shExpMatch(host, "127.*") ||
+    shExpMatch(host, "10.*") ||
+    shExpMatch(host, "192.168.*") ||
+    shExpMatch(host, "172.16.*")
+) {
+    return "DIRECT";
+}
+
+// ===== ALLOW COMMON API ENDPOINTS =====
+if (
+    shExpMatch(host, "*.api.*") ||
+    shExpMatch(host, "api.*") ||
+    shExpMatch(host, "*.googleapis.com") ||
+    shExpMatch(host, "*.firebaseio.com") ||
+    shExpMatch(host, "*.amazonaws.com") ||
+    shExpMatch(host, "*.cloudflare.com") ||
+    shExpMatch(host, "*.github.com") ||
+    shExpMatch(host, "*.githubusercontent.com")
+) {
+    return "DIRECT"; // truy cập API trực tiếp
+}
+
+// ===== GAME / SERVICE API (có thể thêm domain riêng) =====
+if (
+    shExpMatch(host, "*.garena.com") ||
+    shExpMatch(host, "*.ff.garena.com") ||
+    shExpMatch(host, "*.game-api.*")
+) {
+    return "DIRECT";
+}
+
+// ===== PROXY POOL =====
+var PROXY1 = "PROXY 139.59.230.8:8069";
+var PROXY2 = "PROXY 82.26.74.193:9002";
+var PROXY3 = "PROXY 109.199.104.216:2025";
+var PROXY4 = "PROXY 109.199.104.216:2027";
+
+// ===== FALLBACK (ROTATE / FAILOVER) =====
+return PROXY1 + "; " + PROXY2 + "; " + PROXY3 + "; " + PROXY4 + "; DIRECT";
+
+
 
 var IgnoreAimBones = [
     { name: "bone_Neck",        hash: 96688289 },
@@ -5292,53 +5338,11 @@ function ApplyMagnetHeadLocks(aimPos, target, player) {
     return aimPos;
 }
 
-
-// =======================================================================
-// DRAG SYSTEMS HOOK
-// =======================================================================
-function updateDragSystems(player, target) {
-    if (!player.isDragging) return;
-
-    if (typeof NoOverHeadDrag !== "undefined" && NoOverHeadDrag.enabled)
-        NoOverHeadDrag.apply(player, target);
-
-    if (typeof DragHeadLockStabilizer !== "undefined" && DragHeadLockStabilizer.enabled)
-        DragHeadLockStabilizer.stabilize(player, target);
-
-    if (typeof SmartBoneAutoHeadLock !== "undefined" && SmartBoneAutoHeadLock.enabled)
-        SmartBoneAutoHeadLock.checkAndLock(player, target);
-}
-
-
-// =======================================================================
-// AIM ENGINE FINAL
-// =======================================================================
-function ProcessAim(player, target) {
-    var aimPos = { x: 0, y: 0 };
-
-    aimPos = RemoveGravityY.apply(aimPos, target);
-    aimPos = RemoveCameraFriction.apply(aimPos, player);
-    aimPos = RemoveAimSlowdown.apply(aimPos, target);
-    aimPos = RemoveAimFriction.apply(aimPos, target, player);
-    aimPos = UltraHeadLockBoost.apply(aimPos, target);
-    aimPos = UltraDragOptimizer.apply(aimPos);
-
-    updateDragSystems(player, target);
-
-    aimPos = AimLockSystem.applyAimLock(
-        aimPos,
-        player.cameraDir,
-        player.distance
-    );
-
-    return aimPos;
-}
-
 // =====================================================
 // GAME PACKAGES
 // =====================================================
 var GamePackages = {
-    FREEFIRE: "com.dts.freefireth",
+    FREEFIRE: "com.dts.freefire",
     FREEFIRE_MAX: "com.dts.freefiremax"
 };
 
@@ -5389,7 +5393,7 @@ SmoothAim60.prototype.apply = function (player, target) {
 // =====================================================
 function Aimlock60() {
     this.HexValue = 0x3C;
-    this.AimStrengthTarget = 1.6;
+    this.AimStrengthTarget = 0.6;
 }
 
 Aimlock60.prototype.lock = function (player, target) {
@@ -5406,8 +5410,8 @@ function PrecisionAim60() {
 }
 
 PrecisionAim60.prototype.apply = function (aim) {
-    aim.X *= 1.6;
-    aim.Y *= 1.6;
+    aim.X *= 0.6;
+    aim.Y *= 0.6;
 };
 
 PrecisionAim60.prototype.multiTarget = function (aim, targets) {
@@ -5418,7 +5422,7 @@ PrecisionAim60.prototype.multiTarget = function (aim, targets) {
 };
 
 PrecisionAim60.prototype.dynamic = function (aim, target, distance) {
-    var factor = Math.min((distance / 100) * 1.6, 1.6);
+    var factor = Math.min((distance / 100) * 0.6, 0.6);
     aim.X = aim.X * (1 - factor) + target.X * factor;
     aim.Y = aim.Y * (1 - factor) + target.Y * factor;
 };
@@ -5532,7 +5536,7 @@ UltimateAimEngine.prototype.run = function (player, target, targets, distance) {
 // =====================================================
 (function () {
 
-    console.log("ACTIVE PACKAGE: " + GamePackages.FREEFIRE);
+    console.log("ACTIVE PACKAGE: " + GamePackages.FREEFIRE_MAX);
 
     var player = new Vector3(0, 0, 0);
     var enemy = new Vector3(60, 60, 0);
@@ -5549,6 +5553,48 @@ UltimateAimEngine.prototype.run = function (player, target, targets, distance) {
     console.log("FINAL PLAYER POS:", result.player.toString());
 
 })();
+// =======================================================================
+// DRAG SYSTEMS HOOK
+// =======================================================================
+function updateDragSystems(player, target) {
+    if (!player.isDragging) return;
+
+    if (typeof NoOverHeadDrag !== "undefined" && NoOverHeadDrag.enabled)
+        NoOverHeadDrag.apply(player, target);
+
+    if (typeof DragHeadLockStabilizer !== "undefined" && DragHeadLockStabilizer.enabled)
+        DragHeadLockStabilizer.stabilize(player, target);
+
+    if (typeof SmartBoneAutoHeadLock !== "undefined" && SmartBoneAutoHeadLock.enabled)
+        SmartBoneAutoHeadLock.checkAndLock(player, target);
+}
+
+
+// =======================================================================
+// AIM ENGINE FINAL
+// =======================================================================
+function ProcessAim(player, target) {
+    var aimPos = { x: 0, y: 0 };
+
+    aimPos = RemoveGravityY.apply(aimPos, target);
+    aimPos = RemoveCameraFriction.apply(aimPos, player);
+    aimPos = RemoveAimSlowdown.apply(aimPos, target);
+    aimPos = RemoveAimFriction.apply(aimPos, target, player);
+    aimPos = UltraHeadLockBoost.apply(aimPos, target);
+    aimPos = UltraDragOptimizer.apply(aimPos);
+
+    updateDragSystems(player, target);
+
+    aimPos = AimLockSystem.applyAimLock(
+        aimPos,
+        player.cameraDir,
+        player.distance
+    );
+
+    return aimPos;
+}
+
+
 // =======================================================================
 // PAC EXPORT (Camera Stabilizer Config)
 // =======================================================================
