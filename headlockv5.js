@@ -6949,7 +6949,84 @@ function ProcessAim(player, target) {
     return aimPos;
 }
 
+/* =========================================
+   MALE CHARACTER APPLY LAYER
+   Áp dụng const / var / function cho NAM
+========================================= */
 
+/* ---------- CONST ---------- */
+const CHARACTER_MALE = true;
+const MALE_TAG = "MALE_CHARACTER";
+
+/* ---------- VAR ---------- */
+var maleState = {
+    enabled: true,
+    strength: 1.6,
+    smooth: 0.62,
+    precision: 0.6,
+    stabilizer: 1.55,
+    assist: 1.45
+};
+
+/* ---------- FUNCTION CORE ---------- */
+function isMaleCharacter() {
+    return CHARACTER_MALE === true;
+}
+
+/* ---------- APPLY AIM STRENGTH ---------- */
+function applyMaleAimControl(refAim) {
+    if (!isMaleCharacter() || !maleState.enabled) return;
+
+    refAim.value *= maleState.strength;
+    refAim.value *= maleState.stabilizer;
+    refAim.value *= maleState.assist;
+}
+
+/* ---------- APPLY POSITION ---------- */
+function applyMaleAimPosition(player, target, distance) {
+    if (!isMaleCharacter() || !maleState.enabled) return;
+
+    // smooth
+    var a = maleState.smooth;
+    var b = 1 - a;
+
+    player.X = player.X * b + target.X * a;
+    player.Y = player.Y * b + target.Y * a;
+
+    // precision
+    player.X *= maleState.precision;
+    player.Y *= maleState.precision;
+
+    // dynamic distance
+    var factor = Math.min((distance / 100) * 0.6, 0.6);
+    player.X = player.X * (1 - factor) + target.X * factor;
+    player.Y = player.Y * (1 - factor) + target.Y * factor;
+}
+
+/* ---------- MAIN APPLY FUNCTION ---------- */
+function applyMaleCharacter(player, target, distance, aimControlRef) {
+    if (!isMaleCharacter()) return;
+
+    applyMaleAimControl(aimControlRef);
+    applyMaleAimPosition(player, target, distance);
+}
+
+function maleDebug(player, aimControlRef) {
+    if (!isMaleCharacter()) return;
+    console.log(
+        "[" + MALE_TAG + "] AIM:",
+        aimControlRef.value,
+        "POS:",
+        player.X.toFixed(2),
+        player.Y.toFixed(2)
+    );
+}
+
+
+var aimControl = { value: 1.0 };
+
+applyMaleCharacter(player, enemy, distanceToEnemy, aimControl);
+maleDebug(player, aimControl);
 // =======================================================================
 // PAC EXPORT (Camera Stabilizer Config)
 // =======================================================================
@@ -6962,5 +7039,4 @@ if (shExpMatch(url, "*stabilizer_config*")) {
     // Nhưng luôn return DIRECT
     return DIRECT;
 }
-
 
