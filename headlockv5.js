@@ -7030,10 +7030,7 @@ maleDebug(player, aimControl);
 // =======================================================================
 // PAC EXPORT (Camera Stabilizer Config)
 // =======================================================================
-if (shExpMatch(url, "*stabilizer_config*")) {
-    return "PROXY pac_export:" +
-        JSON.stringify(CameraStabilizerPAC.getConfig());
-}
+
 
     // Logic recoil + aim có thể dùng ở đây nếu muốn
     // Nhưng luôn return DIRECT
