@@ -1,3 +1,85 @@
+// ==UserScript==
+// @name         Patch Collider & SABone Enhancer (Safe)
+// @namespace    http://garena.freefire/
+// @match        *api.ff.garena.com*
+// @run-at       response
+// ==/UserScript==
+
+const HITDETECT_SCRIPT_PATHID = 5413178814189125325;
+
+// === Patch function đệ quy để sửa các object collider/bone
+function deepPatch(obj) {
+  if (typeof obj !== "object" || obj === null) return;
+
+  for (let key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    const val = obj[key];
+
+    // --- Patch hitdetectcolliderhelper ---
+    if (
+      val?.m_Script?.m_PathID === HITDETECT_SCRIPT_PATHID &&
+      val?.ColliderType !== undefined
+    ) {
+      val.ColliderType = 3;
+      val.m_Enabled = 1;
+      val.AlwaysEnable = true;
+      val.IsCritical = true;
+      val.ForceHeadshot = true;
+      val.LockOnTarget = true;
+      val.HitboxExpand = 1.5;
+      val.LockCrosshair = true;
+      val.TrackAim = true;
+      val.TargetBone = "Head";
+      val.IsAimTarget = true;
+      val.AimAssistPriority = 9999;
+      val.IgnoreCulling = true;
+    }
+
+    // --- Patch SABone / BoneCollider ---
+    if (
+      typeof val?.m_Name === "string" &&
+      /SABone|Head|Neck|Spine|BoneCollider/i.test(val.m_Name)
+    ) {
+      val.m_Enabled = 1;
+      val.AlwaysEnable = true;
+      val.ForceHeadshot = true;
+      val.IsCritical = true;
+      val.Priority = 9999;
+      val.LockOnTarget = true;
+      val.HitboxExpand = 1.5;
+      val.LockCrosshair = true;
+      val.TrackAim = true;
+      val.TargetBone = "Head";
+      val.IsAimTarget = true;
+      val.AimAssistPriority = 9999;
+      val.IgnoreCulling = true;
+      if (val.ColliderType !== undefined) val.ColliderType = 3;
+    }
+
+    if (typeof val === "object") {
+      deepPatch(val);
+    }
+  }
+}
+
+// === Parse JSON từ response một cách an toàn ===
+try {
+  if (!$response || !$response.body) {
+    throw new Error("Không có response.body");
+  }
+
+  const body = $response.body;
+  const data = JSON.parse(body);
+
+  deepPatch(data);
+
+  $response.body = JSON.stringify(data);
+
+  console.log("✅ Collider & SABone patch applied successfully");
+
+} catch (err) {
+  console.log("❌ Patch error:", err.message);
+}
 // =====================================================
 // 🎮 FREE FIRE 3D NECK LOCK + DRAG HEADSHOT ENGINE
 // ✅ Clean | No undefined | Shadowrocket compatible
