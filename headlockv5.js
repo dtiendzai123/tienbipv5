@@ -1,3 +1,229 @@
+// =====================================================
+// 🎮 FREE FIRE 3D NECK LOCK + DRAG HEADSHOT ENGINE
+// ✅ Clean | No undefined | Shadowrocket compatible
+// =====================================================
+
+// ===============================
+// 🔧 MASTER CONFIG
+// ===============================
+const FREEFIRECONFIG = {
+  SCREEN: {
+    CENTER_X: 1376,
+    CENTER_Y: 1032,
+    DEPTH_SCALE: 1000,
+    fpsLimit: 60
+  },
+  FIRE_BUTTON: {
+    x: 1000,
+    y: 1800
+  },
+  BONE_NECK: {
+    position: { x: -0.128512, y: 0.0, z: 0.0 },
+    rotation: { x: -0.012738, y: -0.002122, z: 0.164307, w: 0.986325 },
+    scale: { x: 1, y: 1, z: 1 },
+    hitbox1: {
+      radius: 0.07,
+      height: 0.17,
+      offset: { x: -0.08, y: -0.01, z: 0.0018 }
+    },
+    hitbox2: {
+      radius: 0.09,
+      height: 0.19,
+      offset: { x: -0.011, y: 0.017, z: -0.0004 }
+    }
+  },
+  NECK_3D_LOCK: {
+    enabled: true,
+    lockRadius: 9999,
+    lockForce: 1.0,
+    magnetism: 1.0,
+    quaternionCorrection: true
+  },
+  DRAG_HEADSHOT: {
+    enabled: true,
+    dragThreshold: 12,
+    dragForce: 0.65,
+    transitionSmooth: 0.85,
+    headSnapRadius: 13,
+    dragHistory: 3
+  },
+  MODES: {
+    debugOverlay: true
+  }
+};
+
+// ===============================
+// 🔗 APPLY CONFIG
+// ===============================
+var CONFIG = FREEFIRECONFIG;
+const CENTER_X = CONFIG.SCREEN.CENTER_X;
+const CENTER_Y = CONFIG.SCREEN.CENTER_Y;
+
+// ===============================
+// 📐 VECTOR 3D
+// ===============================
+class Vector3D {
+  constructor(x = 0, y = 0, z = 0) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+
+  add(v) {
+    return new Vector3D(this.x + v.x, this.y + v.y, this.z + v.z);
+  }
+
+  toScreen() {
+    const depth = this.z + 0.001;
+    return {
+      x: CENTER_X + (this.x * CONFIG.SCREEN.DEPTH_SCALE) / depth,
+      y: CENTER_Y + (this.y * CONFIG.SCREEN.DEPTH_SCALE) / depth
+    };
+  }
+}
+
+// ===============================
+// 🧭 QUATERNION
+// ===============================
+class Quaternion {
+  constructor(x = 0, y = 0, z = 0, w = 1) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.w = w;
+  }
+
+  rotateVector(v) {
+    const { x, y, z, w } = this;
+    const uvx = y * v.z - z * v.y;
+    const uvy = z * v.x - x * v.z;
+    const uvz = x * v.y - y * v.x;
+
+    const uuvx = y * uvz - z * uvy;
+    const uuvy = z * uvx - x * uvz;
+    const uuvz = x * uvy - y * uvx;
+
+    return new Vector3D(
+      v.x + (uvx * w + uuvx) * 2,
+      v.y + (uvy * w + uuvy) * 2,
+      v.z + (uvz * w + uuvz) * 2
+    );
+  }
+
+  getForwardVector() {
+    return this.rotateVector(new Vector3D(0, 0, 1));
+  }
+}
+
+// ===============================
+// 🦴 BONE NECK TRACKER
+// ===============================
+class BoneNeckTracker {
+  constructor() {
+    this.neckHistory = [];
+    this.dragHistory = [];
+    this.lockConfidence = 0;
+    this.dragTransition = 0;
+  }
+
+  calculate3DNeckPosition(hitboxIndex = 0) {
+    const bone = CONFIG.BONE_NECK;
+    const hitbox = hitboxIndex === 0 ? bone.hitbox1 : bone.hitbox2;
+
+    const bonePos = new Vector3D(
+      bone.position.x,
+      bone.position.y,
+      bone.position.z
+    );
+
+    const offset = new Vector3D(
+      hitbox.offset.x,
+      hitbox.offset.y,
+      hitbox.offset.z
+    );
+
+    const quat = new Quaternion(
+      bone.rotation.x,
+      bone.rotation.y,
+      bone.rotation.z,
+      bone.rotation.w
+    );
+
+    const rotatedOffset = quat.rotateVector(offset);
+    const finalPos = bonePos.add(rotatedOffset);
+
+    return {
+      position3D: finalPos,
+      screenPos: finalPos.toScreen(),
+      radius: hitbox.radius * CONFIG.SCREEN.DEPTH_SCALE,
+      quaternion: quat
+    };
+  }
+
+  apply3DNeckLock(input, neck) {
+    if (!CONFIG.NECK_3D_LOCK.enabled) return input;
+
+    const dx = neck.screenPos.x - input.x;
+    const dy = neck.screenPos.y - input.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < neck.radius) {
+      if (CONFIG.NECK_3D_LOCK.quaternionCorrection) {
+        const fwd = neck.quaternion.getForwardVector();
+        return {
+          x: neck.screenPos.x + fwd.x * 2,
+          y: neck.screenPos.y + fwd.y * 2
+        };
+      }
+      return neck.screenPos;
+    }
+
+    return {
+      x: input.x + dx * CONFIG.NECK_3D_LOCK.lockForce,
+      y: input.y + dy * CONFIG.NECK_3D_LOCK.lockForce
+    };
+  }
+
+  applyDragHeadshot(vec, neck, head) {
+    if (!CONFIG.DRAG_HEADSHOT.enabled) return vec;
+
+    const dx = head.x - vec.x;
+    const dy = head.y - vec.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < CONFIG.DRAG_HEADSHOT.headSnapRadius) {
+      return {
+        x: vec.x + dx * CONFIG.DRAG_HEADSHOT.dragForce,
+        y: vec.y + dy * CONFIG.DRAG_HEADSHOT.dragForce
+      };
+    }
+    return vec;
+  }
+}
+
+// ===============================
+// 🔁 MAIN PIPELINE
+// ===============================
+function processFrame(inputVec, headScreenPos) {
+  const tracker = new BoneNeckTracker();
+
+  const neck = tracker.calculate3DNeckPosition(0);
+  let out = tracker.apply3DNeckLock(inputVec, neck);
+  out = tracker.applyDragHeadshot(out, neck, headScreenPos);
+
+  return out;
+}
+
+// ===============================
+// 🧪 TEST
+// ===============================
+const inputVec = { x: 532, y: 948 };
+const headScreen = { x: 540, y: 920 };
+
+const result = processFrame(inputVec, headScreen);
+console.log("🎯 RESULT:", result);
+
+
 // Patch Free Fire Config via Shadowrocket MITM
 
 
@@ -7036,4 +7262,3 @@ maleDebug(player, aimControl);
     // Nhưng luôn return DIRECT
     return DIRECT;
 }
-
