@@ -110,6 +110,164 @@ class Matrix4 {
     return this;
   }
 }
+const SENSITIVITY_MULTIPLIER = { x: 0.001, y: 0.001 };
+const headclamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+// ===== SAFE BINDPOSE =====
+function applyBindpose(pos, b) {
+  if (!b) return pos.clone();
+  return new Vector3(
+    b.e00 * pos.x + b.e01 * pos.y + b.e02 * pos.z + (b.e03 || 0),
+    b.e10 * pos.x + b.e11 * pos.y + b.e12 * pos.z + (b.e13 || 0),
+    b.e20 * pos.x + b.e21 * pos.y + b.e22 * pos.z + (b.e23 || 0)
+  );
+}
+// ===== MOCK INPUT (Shadowrocket SAFE) =====
+function sendInputToMouse({ deltaX, deltaY }) {
+  // Shadowrocket không điều khiển chuột thật
+  // Chỉ log hoặc gửi sang engine khác
+  console.log(
+    `🎯 MouseInput → ΔX=${deltaX.toFixed(4)} | ΔY=${deltaY.toFixed(4)}`
+  );
+}
+// ===== RECOIL ENGINE =====
+class RecoilFixEngine {
+  constructor() {
+    // ===== STATE =====
+    this.prevAngle = new Vector3();
+    this.weapon = "default";
+    this.shotCount = 0;
+    this.lastShotTime = 0;
+
+    // ===== RECOIL MAP (FIX CHÍNH) =====
+    this.recoilMap = {
+      default: {
+        recoilX: 0.0,
+        recoilY: 0.0,
+        smooth: 0.85,
+        pattern: [1.0],
+        recoveryRate: 1.0
+      },
+      mp40: {
+        recoilX: 0.0,
+        recoilY: 0.0,
+        smooth: 0.78,
+        pattern: [1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8],
+        recoveryRate: 0.88
+      },
+      ump: {
+        recoilX: 0.0,
+        recoilY: 0.0,
+        smooth: 0.82,
+        pattern: [1.0, 1.1, 1.3, 1.5, 1.7, 1.9, 2.1, 2.3, 2.5, 2.7],
+        recoveryRate: 0.90
+      },
+      m1887: {
+        recoilX: 0.0,
+        recoilY: 0.0,
+        smooth: 0.75,
+        pattern: [1.0, 1.5, 2.0, 2.5],
+        recoveryRate: 0.85
+      },
+      ak: {
+        recoilX: 0.0,
+        recoilY: 0.0,
+        smooth: 0.72,
+        pattern: [1.0, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1, 3.4, 3.7],
+        recoveryRate: 0.85
+      }
+    };
+
+    // ===== PREDICTION =====
+    this.predictedPositions = [];
+    this.maxPredictionHistory = 5;
+
+    // ===== ADAPTIVE SMOOTH =====
+    this.adaptiveSmoothing = {
+      baseSmooth: 0.8,
+      distanceMultiplier: 0.1,
+      velocityMultiplier: 0.05
+    };
+
+    // ===== BIND CONTEXT (FIX QUAN TRỌNG) =====
+    this.setWeapon = this.setWeapon.bind(this);
+  }
+setWeapon(w) {
+  if (!this.recoilMap || typeof this.recoilMap !== "object") {
+    this.weapon = "default";
+    return;
+  }
+
+  this.weapon = this.recoilMap[w] ? w : "default";
+  this.shotCount = 0;
+}
+compensate(yaw, pitch, firing) {
+  // 🔒 Bảo vệ map
+  const cfg = this.recoilMap[this.weapon] || this.recoilMap.default;
+
+  // ===== SHOT COUNT =====
+  if (firing) {
+    this.shotCount = Math.min(
+      this.shotCount + 1,
+      cfg.pattern.length - 1
+    );
+  } else {
+    this.shotCount = Math.max(0, this.shotCount - 1);
+  }
+
+  // ===== RECOIL FACTOR =====
+  const factor = cfg.pattern[this.shotCount];
+
+  const target = new Vector3(
+    yaw * factor,
+    pitch * factor,
+    0
+  );
+
+  // ===== SMOOTH =====
+  const out = this.prevAngle.clone().lerp(target, cfg.smooth);
+
+  // ===== RECOVERY =====
+  this.prevAngle = firing
+    ? out.clone()
+    : out.clone().multiplyScalar(cfg.recoveryRate);
+
+  return out;
+}
+aim(camera, head, firing) {
+  const camPos = new Vector3(
+    camera.position.x,
+    camera.position.y,
+    camera.position.z
+  );
+
+  // ❗ clone để không phá dữ liệu head
+  const dir = head.clone().subtract(camPos).normalize();
+
+  const pitch = -Math.asin(clamp(dir.y, -1, 1));
+  const yaw = Math.atan2(dir.x, dir.z);
+
+  const aim = this.compensate(yaw, pitch, firing);
+
+  sendInputToMouse({
+    deltaX: aim.x * SENSITIVITY_MULTIPLIER.x,
+    deltaY: aim.y * SENSITIVITY_MULTIPLIER.y
+  });
+
+  return aim;
+}
+}
+const recoilEngine = new RecoilFixEngine();
+recoilEngine.setWeapon("mp40");
+
+const camera = { position: { x: 0, y: 2.0, z: 0 } };
+const enemyHead = new Vector3(-0.0456, -0.0044, -0.0200);
+
+// 🔥 gọi aim
+const finalAim = recoilEngine.aim(camera, enemyHead, true);
+
+console.log("🎯 AIM RESULT:", finalAim.toFixed?.(4) || finalAim);
+// ===== TEST =====
 
 // ===== BoneHeadTracker Class =====
 class BoneHeadTracker {
