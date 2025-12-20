@@ -1,3 +1,232 @@
+
+
+const AimBoneFusion_X160_AbsoluteInfinity = (() => { 'use strict';
+const signature = "mtrietdz_X16.0_ABSOLUTE_INFINITY_OP"; 
+
+
+// ================= CONFIG X16.0 (ABSOLUTE INFINITY CORE) =================
+const config = {
+  ultraLightMode: true,
+  lowResourceMode: false, 
+
+  targetFps: 9999, // MAX FPS
+  minFps: 999,
+
+  // ZERO LATENCY TUYỆT ĐỐI (INFINITY)
+  // Sử dụng số cực nhỏ nhất có thể
+  baseFrameSkip: 1e-99,
+  maxFrameSkip: 1e-10, 
+
+  // Sensitivity cấp BÁ ĐẠO - MAX TUYỆT ĐỐI
+  baseSensitivity: 99999999.0, 
+  hyperVelocityFactor: 99999.0, 
+
+  // AIM FOV TUYỆT ĐỐI
+  aimFov: 360.0, 
+
+  // Close-Boost Áp Đảo
+  closeBoostMaxDist: 50.0, // Tăng phạm vi kích hoạt boost cực rộng
+
+  // Hệ thống xương - TẬP TRUNG TUYỆT ĐỐI VÀO CỔ ĐỂ BUỘC KÉO LÊN ĐẦU
+  bones: {
+    head:  { offsetY: 0,  weight: 0.001 }, // Giảm nhẹ đầu gần như bằng 0
+    neck:  { offsetY: 1,  weight: 9999.0 }, // Trọng tâm chính ở cổ TĂNG TUYỆT ĐỐI
+    chest: { offsetY: 15, weight: 0.01 } // Hỗ trợ từ ngực gần như không có
+  },
+
+  mode: "absolute_headshot_infinity",
+  superHeadLockBase: 99999999.0, // AIM LOCK Cứng Tuyệt đối
+
+  // Smooth PHẢN HỒI TỨC THÌ (Infinity)
+  smoothBaseNear:  1e-99, 
+  smoothBaseFar:   1e-99, 
+
+  // AIM SILENT (Chống rung lắc BÁ ĐẠO)
+  antiShakeThreshold: 999999.0, 
+
+  // Prediction 4D Cực Đại INFINITY
+  predictionFactorX: 999.0, 
+  predictionFactorY: 999.0, 
+
+  // Compensation HEADSHOT TUYỆT ĐỐI
+  verticalHeadliftBias: -99999.0, // <--- Lực kéo lên đầu MAX TUYỆT ĐỐI (Cao nhất)
+  strafeCompensateFactor: 9999.0, 
+  jumpCrouchAimBoost: 99999.0, 
+  softMagnetRadius: 50.0, // <--- AIM MAGIC: Tăng bán kính hút mềm cực đại
+
+  // FireBoost Cực Đại INFINITY (AIM BRIGHT)
+  fireBoostFactor: 999999.0, // <--- Lực khóa tăng mạnh khi bắn (Tuyệt đối)
+
+  // Adaptive recoil Vô Cực - ZERO RECOIL ABSOLUTE
+  recoilLearnRate: 9999.0, 
+  recoilDecay: 1.0 - 1e-99, // Phân rã giật gần như = 1 tuyệt đối
+  recoilClamp: 1e-99, // Giới hạn giật gần như = 0 tuyệt đối
+
+  triggerAlwaysInFov: true,
+
+  // Weapon profiles ABSOLUTE - TĂNG CƯỜNG CÁC HỆ SỐ KÉO TÂM & TỐC ĐỘ MAX
+  weapons: {
+    default: { sens: 9999.0, pull: 1.0, speed: 99999.0, headBias: 0.99, neckBias: 9999.0, chestBias: 0.01, closeBoost: 9999999.0, smoothMul: 1e-99 }, 
+    mp40:    { sens: 99999.0, pull: 1.0, speed: 999999.0, headBias: 0.99, neckBias: 9999.0, chestBias: 0.01, closeBoost: 9999999.0, smoothMul: 1e-99 }, 
+    vector:  { sens: 99999.0, pull: 1.0, speed: 999999.0, headBias: 0.99, neckBias: 9999.0, chestBias: 0.01, closeBoost: 9999999.0, smoothMul: 1e-99 }, 
+    m1887:   { sens: 99999.0, pull: 1.0, speed: 999999.0, headBias: 0.99, neckBias: 9999.0, chestBias: 0.01, closeBoost: 9999999.0, smoothMul: 1e-99 }, 
+    m1014:   { sens: 99999.0, pull: 1.0, speed: 999999.0, headBias: 0.99, neckBias: 9999.0, chestBias: 0.01, closeBoost: 9999999.0, smoothMul: 1e-99 } 
+  }
+
+};
+
+// ... (Phần logic còn lại được giữ nguyên từ tệp gốc)
+let lastAim = { x: 0, y: 0 };
+let lastUpdateTime = 0;
+let learnedRecoil = { x: 0, y: 0 };
+let fireStreak = 0;
+
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const mix = (v, target, t) => v * (1 - t) + target * t;
+
+function nowMs() { return performance.now(); }
+
+function getWeaponCfg(name) { const key = String(name).toLowerCase(); return config.weapons[key] || config.weapons.default; }
+
+function modeSupremeHeadLock() { return config.superHeadLockBase * 6.0; } 
+
+function pingScale(ping) { const p = clamp((ping || 30) / 80, 0, 1.6); return 1.0 - 0.25 * clamp(p, 0, 1); }
+
+// ================= Prediction 4D Cực Đại INFINITY =================
+function predictHead4D(head, vel, ping) {
+  if (!vel) return head;
+  const t = (ping || 30) / 900;
+  return { 
+    x: head.x + vel.x * t * config.predictionFactorX, 
+    y: head.y + vel.y * t * config.predictionFactorY 
+  };
+}
+
+// ================= Compute Aim =================
+function computeAim(current, enemy, weapon, opts = {}) { 
+  const now = nowMs();
+  const w = getWeaponCfg(weapon);
+
+  if (config.lowResourceMode && now - lastUpdateTime < (1000 / config.targetFps)) {
+    return lastAim;
+  }
+  lastUpdateTime = now;
+
+  if (!enemy) return lastAim;
+
+  const ping = opts.pingMs || 30;
+  const vel = opts.velocity || { x: 0, y: 0 };
+  const firing = !!opts.isFiring;
+
+  const headPred = predictHead4D(enemy, vel, ping);
+  const d0 = dist(current, headPred);
+
+  if (d0 > config.aimFov) return lastAim;
+
+  // Bone blend X16 – TÍNH TRỌNG TÂM VỀ CỔ/NGỰC ĐỂ HỖ TRỢ HEADSHOT (ABSOLUTE)
+  let targetY = headPred.y;
+  let targetX = headPred.x;
+  
+  const totalWeight = config.bones.head.weight + config.bones.neck.weight + config.bones.chest.weight;
+  const targetOffsetY = (
+    config.bones.head.offsetY * config.bones.head.weight +
+    config.bones.neck.offsetY * config.bones.neck.weight +
+    config.bones.chest.offsetY * config.bones.chest.weight
+  ) / totalWeight;
+
+  let target = {
+    x: targetX,
+    y: targetY + targetOffsetY + config.verticalHeadliftBias 
+  };
+
+  let dx = target.x - current.x;
+  let dy = target.y - current.y;
+
+  // Compensation HEADSHOT TUYỆT ĐỐI
+  dx -= vel.x * config.strafeCompensateFactor * 0.01;
+  dy -= vel.y * 0.005;
+
+  // Close Boost Supreme MAX 
+  if (d0 < config.closeBoostMaxDist) {
+    const r = 1 - d0 / config.closeBoostMaxDist;
+    const hk = modeSupremeHeadLock() * (w.headBias || 1) * pingScale(ping);
+    dx *= 1 + r * hk * 50.0; // Tăng lực boost
+    dy *= 1 + r * hk * 50.0;
+  }
+  
+  // AIM MAGIC (Hút mềm khi gần mục tiêu)
+  if (d0 < config.softMagnetRadius) {
+    const r = 1 - d0 / config.softMagnetRadius;
+    const mag = 1 + r * 50000.0; // Lực hút tăng mạnh (ABSOLUTE)
+    dx *= mag;
+    dy *= mag;
+  }
+
+  // Fire Boost Supreme MAX (AIM BRIGHT)
+  if (firing) {
+    fireStreak = Math.min(fireStreak + 1, 9999);
+    const fb = 1 + (config.fireBoostFactor - 1) * clamp(fireStreak / 8, 0, 1);
+    dx *= fb;
+    dy *= fb;
+  } else fireStreak = Math.max(fireStreak - 1000, 0);
+
+  // Recoil Engine X16 (ZERO RECOIL ABSOLUTE)
+  learnedRecoil.x = mix(learnedRecoil.x, -dx, config.recoilLearnRate);
+  learnedRecoil.y = mix(learnedRecoil.y, -dy, config.recoilLearnRate);
+
+  learnedRecoil.x *= config.recoilDecay;
+  learnedRecoil.y *= config.recoilDecay;
+
+  dx += learnedRecoil.x;
+  dy += learnedRecoil.y;
+
+  // Apply weapon scaling
+  const ws = 99.9 * w.speed * w.pull; // Tăng hệ số speed tối đa
+  dx *= ws;
+  dy *= ws;
+
+  const pre = { x: current.x + dx, y: current.y + dy };
+  // Smooth Tối ưu kéo tâm (Siêu nhạy)
+  const sm = Math.pow(d0 < 1 ? config.smoothBaseNear : config.smoothBaseFar, w.smoothMul); 
+  const result = { x: mix(pre.x, lastAim.x, sm), y: mix(pre.y, lastAim.y, sm) };
+
+  lastAim = result;
+  return lastAim;
+
+}
+
+// ================= Public API ================= 
+function aim(current, enemy, weapon = 'default', opts = {}) { 
+  const w = getWeaponCfg(weapon);
+  const base = computeAim(current, enemy, weapon, opts);
+  // Áp dụng độ nhạy MAX
+  const sens = config.baseSensitivity * w.sens * config.hyperVelocityFactor; 
+  return { x: base.x * sens, y: base.y * sens }; 
+}
+
+function trigger(c, e) { if (!e) return false; return dist(c, e) <= config.aimFov; }
+
+function getConfig() { return JSON.parse(JSON.stringify(config)); }
+
+return { aim, trigger, signature, getConfig }; 
+})();
+
+// Weapon Alias
+(() => { 
+  const base = AimBoneFusion_X160_AbsoluteInfinity.getConfig().weapons;
+  if (AimBoneFusion_X160_AbsoluteInfinity.updateConfig) {
+      AimBoneFusion_X160_AbsoluteInfinity.updateConfig({ 
+        weapons: { 
+          M1887: base.m1887, m1887: base.m1887, 
+          M1014: base.m1014, m1014: base.m1014, 
+          MP40: base.mp40, mp40: base.mp40, 
+          Vector: base.vector, vector: base.vector 
+        }
+      });
+  }
+})();
 class Vector3 {
   constructor(x = 0, y = 0, z = 0) { 
     this.x = x;
