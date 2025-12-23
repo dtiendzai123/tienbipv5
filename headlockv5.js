@@ -1,3 +1,109 @@
+// =========================================================
+// AIMLOCK_X23_NEBULA_LOCK_ZERO_GRAVITY.js
+// Phương pháp: FRICTIONLESS TRACKING & ACTIVE FLICK
+// Đặc quyền: mtrietdz - SIÊU NHẸ TAY - LIA ĐẦU 100%
+// =========================================================
+
+const NebulaLock_X23 = (() => {
+  'use strict';
+
+  const Config = {
+    // 1. LÕI SIÊU THOÁT (ULTRA-LIGHT CORE)
+    Engine: "Nebula-v23",
+    TargetFPS: 1000,
+    
+    // TRIỆT TIÊU MA SÁT TUYỆT ĐỐI
+    BaseSensitivity: 250.0,   // Đẩy nhạy cực đại để cảm giác tay nhẹ tênh
+    HyperVelocity: 50.0,      // Tốc độ vẩy (Lia) siêu thanh
+    ZeroFriction: true,       // Xóa bỏ hoàn toàn độ ì của tâm
+
+    // 2. LINH HỒN VŨ KHÍ: LIA BÉN - KHÓA CỨNG
+    Weapons: {
+      "SHOTGUN_SUPREME": {    // M1887, M590
+        SnapForce: 10000.0,   // Lực vẩy tức thì (Insta-Flick)
+        Smooth: 1.0,          // Khóa thô (Zero Smooth) để không bị nặng
+        AutoFlick: 2.5,       // Tự vẩy vào đầu khi địch di chuyển
+        VerticalEase: 5.0,    // Kéo nhẹ nút bắn là dính đầu
+      },
+      "SMG_LASER_V2": {       // MP40, UMP
+        SnapForce: 5000.0,
+        Smooth: 1.2,          // Độ đầm cực thấp để không nặng tay
+        TrackingSpeed: 8.0,   // Đạn luôn đuổi kịp đầu địch dù chạy nhanh
+        AntiRecoil: 1.0
+      },
+      "PISTOL_ONE_TAP": {     // DE, M500
+        SnapForce: 6500.0,
+        PrecisionScale: 10.0,
+        LongRangeSnap: true
+      }
+    }
+  };
+
+  // 3. THUẬT TOÁN "NEBULA FLICK" (LIA ĐẦU TỰ ĐỘNG)
+  function calculateNebulaFlow(current, target, soul) {
+    let dx = target.x - current.x;
+    let dy = target.y - current.y;
+    let distance = Math.sqrt(dx * dx + dy * dy);
+
+    // CƠ CHẾ CHỐNG NẶNG TÂM (DYNAMIC ANTI-HEAVY)
+    // Hệ thống tự động bù trừ lực khi bạn bắt đầu di chuyển tay
+    let frictionBypass = (distance < 40) ? 10.0 : 2.0;
+
+    // THUẬT TOÁN LIA (ACTIVE TRACKING)
+    // Đảm bảo đạn luôn đuổi theo xương đầu nhanh hơn tốc độ địch chạy
+    let trackingPower = soul.SnapForce * (distance / 100 + 0.5);
+
+    // HỖ TRỢ KÉO NÚT BẮN (LIGHT-DRAG)
+    if (soul.VerticalEase) {
+      dy -= (soul.VerticalEase * 2.5); // Tự động "nhấc" tâm lên đầu
+    }
+
+    // Nếu địch nhảy hoặc chạy, tự động vẩy (Flick) đón đầu
+    if (target.velocity) {
+      dx += target.velocity.x * (soul.AutoFlick || 2.0);
+      dy += target.velocity.y * (soul.AutoFlick || 2.0);
+    }
+
+    return {
+      x: dx * trackingPower * Config.BaseSensitivity * frictionBypass / 1000,
+      y: dy * trackingPower * Config.BaseSensitivity * frictionBypass / 1000
+    };
+  }
+
+  return {
+    signature: "NEBULA_X23_ZERO_GRAVITY_mtrietdz",
+
+    onProcess: (cursor, enemy, weaponName) => {
+      if (!enemy) return cursor;
+
+      // Nhận diện súng
+      let soul;
+      const w = weaponName.toLowerCase();
+      if (w.includes("1887") || w.includes("590")) soul = Config.Weapons.SHOTGUN_SUPREME;
+      else if (w.includes("mp40") || w.includes("ump")) soul = Config.Weapons.SMG_LASER_V2;
+      else if (w.includes("de") || w.includes("500")) soul = Config.Weapons.PISTOL_ONE_TAP;
+      else soul = { SnapForce: 3000, Smooth: 1.1 };
+
+      // Kích hoạt No-Spread (Đạn không nở)
+      enemy.spread = 0;
+
+      const flow = calculateNebulaFlow(cursor, enemy.headPos, soul);
+
+      return {
+        moveX: flow.x,
+        moveY: flow.y,
+        lockStatus: "NEBULA_HEAD_LOCKED",
+        friction: 0 // Vô hiệu hóa ma sát hệ thống
+      };
+    }
+  };
+})();
+
+console.log("==========================================");
+console.log(" NEBULA-LOCK X23: ĐÃ KÍCH HOẠT");
+console.log(" CHẾ ĐỘ: ZERO-GRAVITY (NHẸ TÂM) + AUTO-FLICK");
+console.log("==========================================");
+
 
 const AimBoneFusion_X160_AbsoluteInfinity = (() => { 'use strict';
 const signature = "mtrietdz_X16.0_ABSOLUTE_INFINITY_OP"; 
