@@ -6,8 +6,303 @@
 
 const NebulaLock_X23 = (() => {
   'use strict';
+const AntiRecoilStabilityConfig = {
+    // ==================================
+    // CÁC THUỘC TÍNH GỐC (MAX HOÁ 999)
+    // ==================================
+    VerticalRecoil_Suppression: 999,        
+    HorizontalShake_Reduction: 999,         
+    RealTimeGun_StabilityControl: 999,      
+    DynamicRecoil_FeedbackMod: 999,         
+    AdvancedShooting_Balance: 999,          
+    InteractiveWeapon_Response: 999,        
+    RealTimeCrosshair_Anchor: 999,          
+    AutoRecoil_AdjustSystem: 999,           
+    StabilizedFiringRate_Control: 999,      
+    QuickRecoil_ResetOptions: 999,          
 
-  const Config = {
+    // ==================================
+    // BỔ SUNG TÍNH NĂNG NÂNG CAO (MAX)
+    // ==================================
+    SmartRecoil_Prediction: 999,            
+    MicroRecoil_Smoothing: 999,             
+    DynamicKickback_Compensation: 999,      
+    BulletPattern_AutoCorrect: 999,         
+    AntiDrift_RecoilControl: 999,           
+    RecoilHeat_Response: 999,               
+    WeaponType_AutoTune: 999,               
+    BurstFire_Stabilizer: 999,              
+    SmartCrosshair_CenterPull: 999,         
+    MultiDirection_RecoilScaling: 999,      
+    SensitivityRecoil_AutoAdjust: 999,      
+    MotionTracking_RecoilSync: 999,         
+    RapidFire_AntiClimb: 999,               
+    AdaptiveGunKick_Recovery: 999,          
+    WeaponGrip_ForceBalance: 999            
+};
+// =======================
+// CUSTOM AIM & GRIP CONFIG
+// =======================
+// =======================
+// ADVANCED AIM CONFIG
+// =======================
+const AdvancedAimConfig = {
+    PrecisionHeadshot_Lock: 999,                // khóa chính xác vào đầu
+    RealTimeTarget_Tracking: 999,               // theo dõi mục tiêu real-time
+    DynamicAimAssist_Scaling: 999,              // tự động điều chỉnh aim assist
+    AdvancedHeadFocus_Mode: 999,                // tập trung vào đầu nâng cao
+    InteractiveAim_Feedback: 999,               // phản hồi tương tác aim
+    CustomizableAim_Zones: 999,                 // các vùng aim tùy chỉnh
+    RealTimeAim_Correction: 999,                // hiệu chỉnh aim real-time
+    AutoTarget_SnapSpeed: 999,                  // tốc độ snap tự động
+    DynamicRecoil_OffsetControl: 999,           // điều chỉnh recoil động
+    QuickAim_ResetOptions: 999,                 // reset aim nhanh
+    // =======================
+    // BỔ SUNG TÍNH NĂNG MỚI
+    // =======================
+    HeadTracking_Stability: 999,                // ổn định theo dõi đầu
+    AimSensitivity_AutoTune: 999,               // tự tune độ nhạy aim
+    PredictiveTarget_Compensation: 999,         // bù trừ dự đoán target
+    MicroAdjust_Stabilizer: 999,                // điều chỉnh nhỏ mượt mà
+    SmartSnap_Optimization: 999,                // tối ưu snap thông minh
+    MultiZone_ForceScaling: 999                 // scaling lực aim theo vùng
+};
+const CustomAimConfig = {
+    CustomizableAim_GripLevel: 999,                // tăng cao từ 1 lên max
+    AutoDrag_RepositionSystem: 999,                // tự động kéo & định vị
+    RealTimeGrip_PressureMod: 999,                // điều chỉnh lực kẹp real-time
+    AdvancedGrip_Balance: 999,                     // cân bằng nâng cao
+    FingerMotion_Assist: 999,                      // hỗ trợ chuyển động ngón tay
+    DynamicTouch_DriftPrevention: 999,            // chống trôi cảm ứng
+    FastGrip_ResetToggle: 999,                     // reset nhanh lực kẹp
+    PrecisionControl_Override: 999,               // override kiểm soát chính xác
+    DragStability_SyncSystem: 999,                // đồng bộ ổn định drag
+    QuickGrip_ResetOptions: 999,                   // các tùy chọn reset nhanh
+    // =======================
+    // BỔ SUNG TÍNH NĂNG MỚI
+    // =======================
+    MultiFinger_AdaptiveForce: 999,               // lực tùy biến theo ngón tay
+    AutoStabilize_HandTracking: 999,              // ổn định theo tay
+    MicroDrag_Smoothing: 999,                     // mượt hóa drag nhỏ
+    GripHeat_ResponseMod: 999,                     // phản hồi nhiệt độ
+    HapticFeedback_Intensity: 999,                // cường độ phản hồi rung
+    AntiSlip_Adjustment: 999,                     // chống trượt khi bấm
+    TurboGrip_Mode: 999,                           // chế độ grip cực nhanh
+    SmartPressure_Calibration: 999,               // tự động hiệu chỉnh lực
+    TouchZone_Expansion: 999,                      // mở rộng vùng cảm ứng
+    ReactionTime_Optimization: 999                // tối ưu phản ứng nhanh
+};
+const Basic = {
+        WeaponAimYawRate: 99999,
+        CrossHairBurstIncreaseSpeed: 99,
+        BulletFireSpeed: "AspectRatio_MaintainsYFOV",
+        CrossHairInitialSize: 999,
+        ReloadTime: "AspectRatio_MaintainsYFOV",
+        ShootInterval: "float",
+        BulletRangeMax: 9999,
+        BurstShootBulletsNum: "AspectRatio_MaintainsYFOV",
+        AimAssist: 999.00,
+        WeaponAimAssist: 999.00,
+        WeaponAimFov: 999.00,
+        RadialDamageScale: 9999,
+        RadialDamageWeaponScale: 9999,
+        Target: "Lock_Head",
+        AspectRatioAxisConstraint: "AspectRatio_MaintainYFOV",
+  AimAssist: 88.8,
+    Aim_Assist: 88.8,
+    r_AimAssist: 88.8,
+    r_hit: 88.8
+};
+const SystemAim = {
+    WeaponAimYawRate: "AspectRatio_MaintainsYFOV",
+    CrossHairBurstIncreaseSpeed: 3.0,
+    BulletFireSpeed: "AspectRatio_MaintainsYFOV",
+    CrossHairInitialSize: 1,
+    ReloadTime: "AspectRatio_MaintainsYFOV",
+    ShootInterval: 3.0,
+    BulletRange: 3.0,
+    BurstShootBulletsNum: "AspectRatio_MaintainsYFOV",
+    WeaponAimFOV: 2.0,
+    AspectRatioAxisConstraint: "AspectRatio_MaintainYFOV",
+    SkeletalMeshLODBias: 10,
+    ParticleLODBias: -5
+};
+
+
+// =======================
+// SHOOT WEAPON ENTITY
+// =======================
+const ShootWeaponEntity = {
+    GetBurstShootBullets: "AspectRatio_MaintainsYFOV",
+    GetBurstShootBulletsNum: "AspectRatio_MaintainsYFOV",
+    BurstShootBullets: "AspectRatio_MaintainsYFOV",
+    BurstShootBulletsNum: "AspectRatio_MaintainsYFOV",
+    BurstShootBulletsNumFromEntity: "AspectRatio_MaintainsYFOV",
+    GetBurstShootBulletsNumFromEntity: "AspectRatio_MaintainsYFOV",
+    HandleAlShootBulletHit: "AspectRatio_MaintainsYFOV",
+    OwnerClient_HandleAlShootBulletHit: "AspectRatio_MaintainsYFOV",
+    RPC_OwnerClient_HandleAlShootBulletHit: "AspectRatio_MaintainsYFOV",
+    CurBulletNumInClip: "AspectRatio_MaintainsYFOV"
+};
+
+
+// =======================
+// AUTO AIMING RANGE CONFIG
+// =======================
+const AutoAimingRangeConfig = {
+    Speed: "999",
+    RangeRate: "Max",
+    SpeedAim: "Max"
+};
+
+
+// =======================
+// EXTERNAL CHARACTER CONFIG
+// =======================
+const STExtraBaseCharacter = {
+    UseShootVerifyEx: true,
+    ClientHitPartJudgment: 255,
+    HitPart: 1
+};
+
+
+// =======================
+// WEAPON HIT PART CONFIG
+// =======================
+const WeaponHitPartCoff = {
+    Head: "Max",
+    Body: "AspectRatio_MaintainsYFOV"
+};
+
+
+// =======================
+// PHYSICS SETTINGS
+// =======================
+const PhysicsSettings = {
+    DefaultRecoil: 0,
+    DefaultSRecoilInfo: 0,
+    DefaultRecoilKickADS: 0,
+    DefaultRecoilADSRotation_CP: 0,
+    DefaultOpenParachute: 0,
+    DefaultHitBoxLeanTransR: 0,
+    DefaultSeekAndLockTarget: 5.0,
+    DefaultDamageMagnifierIdx: "AspectRatio_MaintainsYFOV",
+    DefaultDamageWeapons: "AspectRatio_MaintainsYFOV",
+    DefaultMovingSpeedZ: 55,
+    DefaultHitEnemy: "AspectRatio_MaintainsYFOV",
+    EnableDamageInfo: "AspectRatio_MaintainsYFOV",
+    DefaultGravityZ: "AspectRatio_MaintainsYFOV"
+};
+
+
+// =======================
+// SECOND SYSTEM AIM OVERRIDE
+// =======================
+const SystemAim_Override = {
+    WeaponAimYawRate: "AspectRatio_MaintainsYFOV",
+    CrossHairBurstIncreaseSpeed: 3.0,
+    BulletFireSpeed: "AspectRatio_MaintainsYFOV",
+    CrossHairInitialSize: 1,
+    ReloadTime: "AspectRatio_MaintainsYFOV",
+    ShootInterval: 7.0,
+    BulletRange: "MAX",
+    BurstShootBulletsNum: "AspectRatio_MaintainsYFOV",
+    WeaponAimFOV: 2.0,
+    AspectRatioAxisConstraint: "AspectRatio_MaintainYFOV",
+    SkeletalMeshLODBias: 10,
+    ParticleLODBias: -5
+};
+    // --- GameSetting ---
+    const GameSetting = {
+        AimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimFov: "AspectRatio_MaintainsYFOV",
+        SingleShotWeaponShootMode: "AspectRatio_MaintainsYFOV",
+        ActorAnimationSwitch: false,
+        CrossHair: "AspectRatio_MaintainsYFOV",
+        LeftHandFire: "AspectRatio_MaintainsYFOV",
+        LRShootSniperSwitch: "AspectRatio_MaintainsYFOV",
+        GrassHeightScale: 0,
+        Fog: 0,
+        DefaultTerminalVelocity: 0,
+        UseTss: 0
+    };
+
+    // --- SystemAim ---
+    const SystemAim = {
+        WeaponAimYawRate: 99999,
+        CrossHairBurstIncreaseSpeed: 9999,
+        BulletFireSpeed: "AspectRatio_MaintainsYFOV",
+        CrossHairInitialSize: "AspectRatio_MaintainsYFOV",
+        ReloadTime: "AspectRatio_MaintainsYFOV",
+        ShootInterval: "Float",
+        BulletRangeMax: 99999,
+        BurstShootBulletsNum: "AspectRatio_MaintainsYFOV",
+        AimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimFOV: "AspectRatio_MaintainsYFOV",
+        RadialDamageScale: 99999,
+        Target: "Lock_Head",
+        LockEnemy: true,
+        AspectRatioAxisConstraint: "AspectRatio_MaintainYFOV"
+    };
+
+    // --- AttackFlow ---
+    const AttackFlow = {
+        BulletDamageScale: 99999,
+        BulletSpeed: "AspectRatio_MaintainsYFOV",
+        BulletCost: "AspectRatio_MaintainsYFOV",
+        AutoAimSpeed: "AspectRatio_MaintainsYFOV",
+        HitPart: "AspectRatio_MaintainsYFOV",
+        AimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimFov: "AspectRatio_MaintainsYFOV",
+        Target: "Lock_Head",
+        LockEnemy: true,
+        UseTss: 0
+    };
+
+    // --- AimFlow ---
+    const AimFlow = {
+        ShotHitCount: "$Value",
+        WeaponAimYawRate: 99999,
+        ShotHeadHitCount: "AspectRatio_MaintainsYFOV",
+        ShotPersonHitCount: "AspectRatio_MaintainsYFOV",
+        ShotPersonKillCount: "AspectRatio_MaintainsYFOV",
+        AimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimFov: "AspectRatio_MaintainsYFOV",
+        Target: "Lock_Head",
+        LockEnemy: true,
+        UseTss: 0
+    };
+
+    // --- LocalShootHitData ---
+    const LocalShootHitData = {
+        BulletDown: "AspectRatio_MaintainsYFOV",
+        BulletUp: "AspectRatio_MaintainsYFOV",
+        BulletRight: "AspectRatio_MaintainsYFOV",
+        BulletLeft: "AspectRatio_MaintainsYFOV",
+        ShootInterval: "Float",
+        AimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimAssist: "AspectRatio_MaintainsYFOV",
+        WeaponAimFov: "AspectRatio_MaintainsYFOV",
+        BulletDamageReduceRatio: "AspectRatio_MaintainsYFOV"
+    };
+
+    // --- Simple Head Lock System for PAC ---
+    const AdaptiveAimSystem = {
+        LockMode: "Head",
+        LockEnemy: true,
+        AutoAdjustRecoil: true,
+        HeadshotBias: 9999,
+        NoGravityRange: 9999,
+        StickToHead: true,
+        AntiDrop: true,
+        PredictiveAim: true
+    };
+
+  const SettingsFFConfig = {
     // 1. LÕI SIÊU THOÁT (ULTRA-LIGHT CORE)
     Engine: "Nebula-v23",
     TargetFPS: 1000,
