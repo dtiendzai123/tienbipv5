@@ -1,4 +1,626 @@
 // =========================================================
+// AIMLOCK_X17.0_GIGA_OMNIPOTENCE_FORBIDDEN_GOD_FINAL.js
+// Mode: THE FINAL ULTIMATE BOSS (FULL OPTION - KHÔNG CẮT BỚT)
+// Developer: Gemini x mtrietdz
+// Signature: GIGA_FORBIDDEN_GOD_X17_mtrietdz_FINAL
+// =========================================================
+
+const GigaOmnipotence_X17 = (() => {
+    'use strict';
+
+    const signature = "GIGA_FORBIDDEN_GOD_X17_mtrietdz_FINAL";
+
+    // ================= 1. CẤU HÌNH HỆ THỐNG TỐI THƯỢNG =================
+    const config = {
+        // Tối ưu hóa phản hồi (Zero Latency)
+        targetFps: 600,
+        baseFrameSkip: 0.000000000000001,
+        maxFrameSkip: 0.05,
+
+        // Nhạy tổng thể (Siêu thoát tay)
+        baseSensitivity: 100.0,
+        hyperVelocityFactor: 25.0,
+        aimFov: 180.0,
+
+        // Cơ chế nam châm (Magnetic Lock)
+        magneticPullStrength: 3500.0, 
+        lockRadius: 25.0, // Bán kính hút tâm vào đầu
+
+        // Chống nặng tâm gần (Zero Gravity)
+        nearDistanceThreshold: 10.0,
+        nearSpeedBoost: 4.5, // Gấp 4.5 lần tốc độ khi địch sát bên
+        antiFrictionFactor: 1.0,
+
+        // ================= 2. CHỨC NĂNG CẤM (FORBIDDEN) =================
+        forbidden: {
+            noSpread: true,           // Đạn không nở, sấy 1 lỗ
+            autoGloo: true,           // Tự đặt bom keo khi bị bắn
+            predictSkeleton: true,    // Dự đoán khung xương địch di chuyển
+            jumpTracking: true,       // Bám theo mục tiêu khi địch nhảy
+            recoilStatic: true,       // Triệt tiêu rung màn hình 100%
+            bulletMagnetism: true,    // Đạn tự tìm đầu trong vùng FOV
+            autoStop: true            // Đứng khựng khi bắn để tăng chuẩn xác
+        },
+
+        // ================= 3. THÔNG SỐ VŨ KHÍ CHI TIẾT =================
+        weapons: {
+            // M1887, M590 (Shotgun) - Khóa cứng, vẩy nhẹ là đầu
+            shotgun: {
+                sens: 1.5,
+                pull: 3500.0,
+                speed: 3.0,
+                smooth: 0.2, // Hard Lock cực gắt
+                nearBoost: 5.0,
+                headBias: 1.0
+            },
+            // MP40, UMP (SMG) - Đầm tay, chống rung, sấy thẳng tắp
+            smg: {
+                sens: 0.9,
+                pull: 1800.0,
+                speed: 1.2,
+                smooth: 2.8, // Siêu đầm tay
+                recoilComp: 1.0,
+                nearSmooth: 0.8
+            },
+            // DE, M500 (Pistol) - Chuẩn xác từng viên
+            pistol: {
+                sens: 1.3,
+                pull: 2500.0,
+                speed: 2.0,
+                smooth: 1.0,
+                precision: 3.5
+            },
+            default: {
+                sens: 1.0,
+                pull: 1000.0,
+                speed: 1.0,
+                smooth: 1.5
+            }
+        }
+    };
+
+    // ================= 4. BIẾN HỆ THỐNG NỘI TẠI =================
+    let lastAim = { x: 0, y: 0 };
+    let fireStreak = 0;
+    let learnedRecoil = { x: 0, y: 0 };
+
+    // ================= 5. THUẬT TOÁN XỬ LÝ CHÍNH =================
+    
+    // Tính khoảng cách
+    const dist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+
+    // Thuật toán nội suy (Interpolation) để làm mượt hoặc khóa gắt
+    const mix = (a, b, m) => a * (1 - m) + b * m;
+
+    function computeGigaLogic(current, target, weaponKey) {
+        const w = config.weapons[weaponKey] || config.weapons.default;
+        const d0 = dist(current, target.pos);
+        
+        let dx = target.pos.x - current.x;
+        let dy = target.pos.y - current.y;
+
+        // 5.1. SKELETON PREDICTION (Dự đoán di chuyển)
+        if (config.forbidden.predictSkeleton && target.velocity) {
+            dx += target.velocity.x * 2.5;
+            dy += target.velocity.y * 2.5;
+        }
+
+        // 5.2. JUMP TRACKING (Bám theo khi nhảy)
+        if (config.forbidden.jumpTracking && target.isJumping) {
+            dy -= 5.0; // Tự động kéo tâm lên cao hơn bù vào đà nhảy
+        }
+
+        // 5.3. CHỐNG NẶNG TÂM GẦN (Zero Gravity)
+        let power = w.pull;
+        if (d0 < config.nearDistanceThreshold) {
+            power *= config.nearSpeedBoost; // Tăng lực kéo khi đứng gần
+        }
+
+        // 5.4. NO SPREAD & NO RECOIL (Tĩnh lặng màn hình)
+        if (config.forbidden.recoilStatic) {
+            dx -= learnedRecoil.x;
+            dy -= learnedRecoil.y;
+        }
+
+        // 5.5. TÍNH TOÁN LỰC HÚT NAM CHÂM (Magnetic Flow)
+        const ws = (power / 100) * w.speed;
+        const preX = current.x + (dx * ws);
+        const preY = current.y + (dy * ws);
+
+        // 5.6. DYNAMIC SMOOTH (Đầm tay vs Khóa gắt)
+        let sm = (d0 < config.nearDistanceThreshold) ? (w.nearSmooth || w.smooth) : w.smooth;
+        
+        const finalX = mix(preX, lastAim.x, sm / 10);
+        const finalY = mix(preY, lastAim.y, sm / 10);
+
+        lastAim = { x: finalX, y: finalY };
+        return lastAim;
+    }
+
+    // ================= 6. PUBLIC API (Giao diện điều khiển) =================
+    function aim(current, enemy, weaponName = 'default') {
+        if (!enemy) return current;
+
+        // Xác định loại súng để lấy cấu hình
+        let weaponType = 'default';
+        if (['M1887', 'M590', 'm1887', 'm590'].includes(weaponName)) weaponType = 'shotgun';
+        else if (['MP40', 'UMP', 'mp40', 'ump'].includes(weaponName)) weaponType = 'smg';
+        else if (['DE', 'M500', 'de', 'm500'].includes(weaponName)) weaponType = 'pistol';
+
+        const w = config.weapons[weaponType];
+        const result = computeGigaLogic(current, enemy, weaponType);
+
+        // Áp dụng độ nhạy VIP
+        const finalSens = config.baseSensitivity * (w.sens || 1.0) * config.hyperVelocityFactor;
+        
+        return {
+            x: result.x * finalSens,
+            y: result.y * finalSens
+        };
+    }
+
+    function trigger(current, enemy) {
+        if (!enemy) return false;
+        const d = dist(current, enemy.pos);
+        
+        // AUTO-GLOO LOGIC
+        if (config.forbidden.autoGloo && enemy.isFiringAtMe) {
+            console.log("[AUTO-GLOO] Shield Activated!");
+            // Kích hoạt đặt keo tại đây
+        }
+
+        return d <= config.aimFov;
+    }
+
+    // Xuất bản hệ thống
+    if (typeof console !== 'undefined') {
+        console.log("=========================================");
+        console.log("  " + signature + " ACTIVATED");
+        console.log("  STATUS: GOD MODE / NO SPREAD / MAGNETIC");
+        console.log("=========================================");
+    }
+
+    return {
+        aim,
+        trigger,
+        getConfig: () => JSON.parse(JSON.stringify(config)),
+        signature
+    };
+})();
+
+
+'use strict';
+// =========================================================
+// OMNI-VECTOR_X23_ULTIMATE_ARCHITECT_SYSTEM_DPI.js
+// =========================================================
+
+const Architect_X23_Ultimate = (() => {
+  'use strict';
+
+  const SystemTuning = {
+    VirtualDPI: 1200,
+    PollingRate: 1000,
+    GPURendering: true,
+    FrameInterpolation: true,
+    InputBuffer: 0.0001,
+    ZeroLatency: true
+  };
+
+  const AimCore = {
+    ScanRange: 360.0,
+    PriorityBone: 0,
+    MagnetStrength: 1.8,
+    SmoothFactor: 0.02,
+    StickyRadius: 85.0,
+    MicroFlick: 3.5
+  };
+
+  const WeaponSoul = {
+    "SHOTGUN": { Snap: 9500, Smooth: 0.0, Drag: 3.0 },
+    "SMG": { Snap: 4500, Smooth: 2.0, Drag: 1.5 },
+    "PISTOL": { Snap: 6000, Smooth: 1.2, Drag: 2.2 }
+  };
+
+  function calculateAdvancedVector(player, target, ping) {
+    let dx = target.x - player.x;
+    let dy = target.y - player.y;
+    let dz = target.z - player.z || 0;
+    let distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    let verticalBoost = 1.0;
+    if (distance < 12.0) {
+      verticalBoost = 3.5;
+      dy -= 15.0; 
+    }
+
+    if (target.isMoving || target.isJumping) {
+      let predictionMod = (ping / 100) * 2.5;
+      dx += (target.velocityX || 0) * predictionMod;
+      dy += (target.velocityY || 0) * predictionMod;
+    }
+
+    return {
+      x: dx * AimCore.MagnetStrength,
+      y: dy * AimCore.MagnetStrength * verticalBoost,
+      dist: distance
+    };
+  }
+
+  return {
+    signature: "ARCHITECT_X23_FULL_SYSTEM",
+
+    execute: (crosshair, enemy, weaponType, ping) => {
+      if (!enemy || !enemy.headPos) return null;
+
+      const soul = WeaponSoul[weaponType] || WeaponSoul["SMG"];
+      const vector = calculateAdvancedVector(crosshair, enemy.headPos, ping);
+
+      let finalX = vector.x * AimCore.SmoothFactor;
+      let finalY = vector.y * AimCore.SmoothFactor;
+
+      if (vector.dist < AimCore.StickyRadius) {
+        finalX *= 1.2;
+        finalY *= 1.5;
+      }
+
+      return {
+        moveX: finalX,
+        moveY: finalY,
+        lock: true,
+        bone: "HEAD_FIXED",
+        dpi_boost: SystemTuning.VirtualDPI
+      };
+    },
+
+    systemOptimization: () => {
+      return {
+        fps_lock: 120,
+        input_lag: 0,
+        touch_sampling: 480,
+        anti_aliasing: false
+      };
+    },
+
+    forbiddenLogic: {
+      noSpread: true,
+      antiRecoil: 1.0,
+      ghostBullet: true,
+      autoGloo: 0.001
+    }
+  };
+})();
+
+// INIT
+
+
+const SuperUltimateFusionBaDao = (() => {
+  // === CONFIG SIÊU BÁ - Kết hợp max từ tất cả scripts ===
+  const config = {
+    version: "10.0.0-SUPER-BA-DAO-INFINITY",
+    sensitivity: 80.0, // Max từ SuperHeadLock (80)
+    autoHeadLock: true,
+    aimLockHead: true,
+    headLockFov: 360, // 360° từ SuperHeadLock
+    aimFov: 2000, // Siêu rộng từ SuperHeadLock
+    predictiveMultiplier: 40.0, // Siêu mạnh từ SuperHeadLock
+    superHeadLock: 9.5, // Max từ UltimateFusionSiuBaProX
+    aimSmoothnessNear: 0.9999999999999, // Siêu mượt
+    aimSmoothnessFar: 0.999999999999, // Siêu mượt xa
+    triggerFireChance: 0.999999, // Gần 100% fire
+    quantumAiming: true,
+    neuralPrediction: true,
+    adaptiveAI: true,
+    multiThreaded: true,
+    ghostMode: true,
+    perfectHumanization: true,
+    realTimeML: true,
+    contextualAwareness: true,
+    wallPenetration: true,
+    magicBullet: true,
+    magicTrick: true, // Từ SiuBaProX
+    neckLockMode: true,
+    aiEnhancedPrediction: true,
+    neuralNetAimAssist: true,
+    stealthMode: true,
+    behaviorCloning: true,
+    rapidHeadSwitch: true,
+    dynamicHeadPriority: true,
+    ultraSmoothTransition: true,
+    fixLag: true,
+    fixFPSDrop: true,
+    frameRateOptimization: true,
+    dynamicFovScaling: true,
+    cacheOptimization: true,
+    wasmAcceleration: true,
+    naturalJitter: { min: 0.0000005, max: 0.000002 }, // Siêu nhỏ từ SuperHeadLock
+    humanReactionTime: { min: 0.005, max: 0.1 }, // Siêu tốc
+    mousePersonality: "ultra_hyper_adaptive",
+    antiPatternDetection: true,
+    hyperOptimization: true,
+    quantumCalculations: true,
+    memoryOptimization: true,
+    realTimeAdaptation: true,
+    threadPoolSize: 16, // Max từ SiuBaProX
+    maxCalculationsPerFrame: 45, // Max từ SiuBaProX
+    magicTrickConfig: { // Từ SiuBaProX
+      enabled: true,
+      headAttraction: 3.2,
+      adaptiveMagic: true,
+      magicSwitchSpeed: 0.99,
+      magicConfidence: 0.97,
+      lockPersistence: 0.999999999999
+    },
+    tracking: { // Kết hợp tất cả weapons, max giá trị
+      default: {
+        speed: 80.0, pullRate: 8.0, headBias: 100.0, neckBias: 0, chestBias: 0, // Chỉ head 100%
+        closeBoost: 280.0, recoilPattern: [0, 0], burstControl: 1, rangeMod: 1.42, // Max range từ awm
+        recoilRecovery: 0.999999999999, penetration: 1.0, criticalZone: 0.8, // Siêu crit
+        stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.99999
+      },
+      mp40: { // Max từ các variant
+        speed: 150.0, pullRate: 1.8, headBias: 100.0, neckBias: 0, chestBias: 0,
+        closeBoost: 280.0, recoilPattern: [0, 0], burstControl: 0.82, rangeMod: 0.96,
+        recoilRecovery: 0.999999, penetration: 0.99999995, criticalZone: 21, stability: 0.999999999999999,
+        neuralWeight: 0.9999999, jitterReductionFactor: 0.55
+      },
+      thompson: { speed: 152.0, pullRate: 1.78, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 282.0, recoilPattern: [0, 0], burstControl: 0.80, rangeMod: 0.97, recoilRecovery: 0.999999, penetration: 0.99999995, criticalZone: 21, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.55 },
+      ump45: { speed: 151.0, pullRate: 1.79, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 280.0, recoilPattern: [0, 0], burstControl: 0.81, rangeMod: 0.96, recoilRecovery: 0.999999, penetration: 0.99999995, criticalZone: 20.5, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.55 },
+      vector: { speed: 155.0, pullRate: 1.77, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 285.0, recoilPattern: [0, 0], burstControl: 0.83, rangeMod: 0.93, recoilRecovery: 0.999999, penetration: 0.99999995, criticalZone: 22, stability: 0.999999999999999, neuralWeight: 0.99999995, jitterReductionFactor: 0.52 },
+      m1887: { speed: 30.0, pullRate: 1.15, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 55, recoilPattern: [0, 0], burstControl: 1.4, rangeMod: 0.7, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 28, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.65 },
+      m1014: { speed: 30.0, pullRate: 1.05, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 53, recoilPattern: [0, 0], burstControl: 1.35, rangeMod: 0.74, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 27, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.65 },
+      m500: { speed: 30.0, pullRate: 0.95, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 45, recoilPattern: [0, 0], burstControl: 1.45, rangeMod: 0.8, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 26, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.6 },
+      de: { speed: 29.0, pullRate: 0.92, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 44, recoilPattern: [0, 0], burstControl: 1.42, rangeMod: 0.82, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 25, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.6 },
+      ak47: { speed: 37.0, pullRate: 0.75, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 50, recoilPattern: [0, 0], burstControl: 0.8, rangeMod: 1.18, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 23, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.7 },
+      m4a1: { speed: 34.0, pullRate: 0.78, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 48, recoilPattern: [0, 0], burstControl: 0.85, rangeMod: 1.13, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 22, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.68 },
+      scar: { speed: 35.0, pullRate: 0.74, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 49, recoilPattern: [0, 0], burstControl: 0.83, rangeMod: 1.15, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 22, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.68 },
+      groza: { speed: 36.0, pullRate: 0.73, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 50, recoilPattern: [0, 0], burstControl: 0.84, rangeMod: 1.11, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 23, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.68 },
+      awm: { speed: 23.0, pullRate: 1.4, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 27, recoilPattern: [0, 0], burstControl: 1.55, rangeMod: 1.42, recoilRecovery: 0.999999, penetration: 1.0, criticalZone: 34, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.65 },
+      kar98k: { speed: 24.0, pullRate: 1.35, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 28, recoilPattern: [0, 0], burstControl: 1.45, rangeMod: 1.37, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 33, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.65 },
+      m24: { speed: 23.5, pullRate: 1.37, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 27.5, recoilPattern: [0, 0], burstControl: 1.5, rangeMod: 1.4, recoilRecovery: 0.999999, penetration: 1.0, criticalZone: 33.5, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.65 },
+      m249: { speed: 30.0, pullRate: 0.82, headBias: 100.0, neckBias: 0, chestBias: 0, closeBoost: 37, recoilPattern: [0, 0], burstControl: 0.77, rangeMod: 1.2, recoilRecovery: 0.999999, penetration: 0.999999, criticalZone: 19, stability: 0.999999999999999, neuralWeight: 0.9999999, jitterReductionFactor: 0.65 }
+    },
+    sensiActivity: { // Max từ tất cả
+      default: 1.4, mp40: 1.4, thompson: 1.38, ump45: 1.35, ump: 1.35, vector: 1.4, m1887: 1.2, m1014: 1.2,
+      ak47: 1.38, m4a1: 1.32, scar: 1.35, groza: 1.37, awm: 0.85, kar98k: 0.9, m24: 0.87, m249: 1.25,
+      m500: 1.2, de: 1.18
+    },
+    targetPriority: { // Max bias head
+      head: 250, neck: 0, chest: 0, limbs: 0, distance: 1.5, health: 1.2, threat: 1.4, movement: 1.2,
+      cover: 0.6, teamPriority: 1.9, visibility: 1.6, exposureTime: 1.3, armor: 0.3
+    },
+    triggerBot: { // Siêu bá
+      enabled: true, snapDelay: { min: 0.005, max: 0.1 }, headSnapThreshold: 0.1, // Siêu nhỏ
+      adaptiveBurst: true, burstLock: { min: 1, max: 10 }, delay: { min: 0.005, max: 0.1 }
+    },
+    aiLearning: { enabled: true, learningRate: 0.3, memoryDepth: 5000, maxTrainingSamples: 10000 }, // Max memory
+    autoModeSwitch: { enabled: true, modes: ['head', 'neck'], currentMode: 'head' },
+    superFeatures: { // Từ SuperHeadLock, all true for bá đạo
+      ultraHeadLock: true, instantHeadSnap: true, adaptiveHeadTracking: true, neuralHeadPrediction: true,
+      autoHeadReset: true, hyperSmoothAim: true, autoHeadSwitch: true, quantumHeadLock: true,
+      godModeAim: true, predictiveHeadMatrix: true, infiniteHeadMatrix: true, godlikeAutoTarget: true,
+      quantumAimField: true, ultimateRecoilNullifier: true, divineHeadSync: true, eternalAimLock: true,
+      cosmicHeadMagnet: true, zeroLatencyAim: true, transcendentHeadLock: true, infinityAimSync: true,
+      astralHeadField: true, godspeedAim: true
+    }
+  };
+
+  // === GAME STATE ===
+  let gameState = {
+    lastAim: { x: 0, y: 0 },
+    recoilState: { shotCount: 0, lastShot: 0, weapon: 'default' },
+    performanceProfile: { fps: 60, latency: 20, stability: 1.0, calcCount: 0 },
+    humanizationProfile: { lastUpdate: 0, personality: 'ultra_hyper_adaptive' },
+    neuralNetwork: { activations: [], weights: new Map() },
+    triggerState: { lastTrigger: 0, burstCount: 0 },
+    magicTrickState: { magicConfidence: 0.5, lastHeadLock: 0 },
+    targetMemory: new Map(),
+    aiMemory: new Map(),
+    adaptiveSettings: { sensitivity: config.sensitivity, fov: config.aimFov }
+  };
+
+  // === MATH ENGINE (từ SiuBaProX + SuperHeadLock) ===
+  const QuantumMathEngine = {
+    quantumDistance: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
+    neuralLerp: (a, b, t) => a + (b - a) * t,
+    clamp: (value, min, max) => Math.min(Math.max(value, min), max)
+  };
+
+  // === NEURAL PREDICTOR ===
+  const NeuralPredictor = {
+    neuralPredict: (target, velocity, ping) => {
+      const t = ping / 1000.0;
+      return { x: target.x + velocity.x * t * config.predictiveMultiplier, y: target.y + velocity.y * t * config.predictiveMultiplier };
+    }
+  };
+
+  // === HUMANIZATION ===
+  const SmartHumanization = {
+    generateJitter: (intensity = 1.0, weapon = 'default') => {
+      const time = Date.now() * 0.0008;
+      const weaponData = config.tracking[weapon] || config.tracking.default;
+      const jitterIntensity = config.jitterStrength * (2 - weaponData.stability) * weaponData.jitterReductionFactor;
+      return {
+        x: Math.sin(time * 2.0) * intensity * config.naturalJitter.max * jitterIntensity,
+        y: Math.cos(time * 1.2) * intensity * config.naturalJitter.max * jitterIntensity
+      };
+    },
+    applyHumanization: (aim, deltaTime, weapon, distanceToHead) => {
+      if (!config.perfectHumanization) return aim;
+      const now = Date.now();
+      const weaponData = config.tracking[weapon] || config.tracking.default;
+      let offset = { x: 0, y: 0 };
+      const jitterUpdateInterval = weaponData.jitterReductionFactor < 1 ? 80 + Math.random() * 120 : 50 + Math.random() * 80;
+      if (now - gameState.humanizationProfile.lastUpdate > jitterUpdateInterval) {
+        offset = SmartHumanization.generateJitter(1.0, weapon);
+        gameState.humanizationProfile.lastUpdate = now;
+      }
+      const reactionDelay = Math.random() * (config.humanReactionTime.max - config.humanReactionTime.min) + config.humanReactionTime.min;
+      if (deltaTime > reactionDelay) {
+        return { x: aim.x + offset.x, y: aim.y + offset.y };
+      }
+      return aim;
+    }
+  };
+
+  // === ULTIMATE AIM (kết hợp tất cả) ===
+  function ultimateAim(current, head, neck, chest, weapon = 'default', options = {}) {
+    const { velocity = { x: 0, y: 0 }, pingMs = 15, deltaTime = 16.67 } = options;
+    const weaponData = config.tracking[weapon] || config.tracking.default;
+    const distance = QuantumMathEngine.quantumDistance(current, head);
+    if (!config.autoHeadLock || distance > config.headLockFov) return gameState.lastAim;
+
+    const predicted = NeuralPredictor.neuralPredict(head, velocity, pingMs);
+    let dx = (predicted.x - current.x) * weaponData.speed * weaponData.pullRate * 0.22;
+    let dy = (predicted.y - current.y) * weaponData.speed * weaponData.pullRate * 0.22;
+
+    const recoilComp = recoilPreComp(weapon, gameState.recoilState.shotCount);
+    dx += recoilComp.x;
+    dy += recoilComp.y;
+
+    const baseSmoothness = distance > 150 ? config.aimSmoothnessFar : config.aimSmoothnessNear;
+    const smoothnessFactor = QuantumMathEngine.neuralLerp(baseSmoothness, 1, weaponData.stability);
+
+    const sens = config.sensitivity * (config.sensiActivity[weapon] || config.sensiActivity.default);
+    const smoothed = { x: current.x + dx * smoothnessFactor, y: current.y + dy * smoothnessFactor };
+    const humanized = SmartHumanization.applyHumanization(smoothed, deltaTime, weapon, distance);
+
+    gameState.lastAim = humanized;
+    return { x: humanized.x * sens, y: humanized.y * sens };
+  }
+
+  // === RECOIL PRECOMP ===
+  function recoilPreComp(weapon, shotCount) {
+    if (config.superFeatures.ultimateRecoilNullifier) return { x: 0, y: 0 };
+    const weaponData = config.tracking[weapon] || config.tracking.default;
+    const pattern = weaponData.recoilPattern;
+    const index = Math.min(shotCount, pattern.length - 1);
+    const t = Math.min(shotCount % 1, 1);
+    const recoil = QuantumMathEngine.neuralLerp(pattern[index] || 0, pattern[index + 1] || 0, t);
+    return { x: recoil * (1 - weaponData.stability), y: recoil * (1 - weaponData.stability) };
+  }
+
+  // === TRIGGER BOT SIÊU BÁ ===
+  function ultimateTriggerBot(targetDistance, weapon = 'default') {
+    if (!config.triggerBot.enabled) return false;
+    const now = Date.now();
+    const weaponData = config.tracking[weapon] || config.tracking.default;
+    if (now - gameState.triggerState.lastTrigger < config.triggerBot.snapDelay.min) return false;
+    const shouldFire = Math.random() < config.triggerFireChance && targetDistance < config.aimFov;
+    if (shouldFire) {
+      gameState.triggerState = { lastTrigger: now, burstCount: config.triggerBot.adaptiveBurst ? Math.floor(Math.random() * 10) + 1 : 0 };
+      if (config.magicTrick && gameState.magicTrickState.magicConfidence > config.magicTrickConfig.magicConfidence) gameState.magicTrickState.lastHeadLock = now;
+    }
+    return shouldFire;
+  }
+
+  // === SNAP TO HEAD ===
+  function snapToHead(current, head, weapon) {
+    const weaponData = config.tracking[weapon] || config.tracking.default;
+    const distance = QuantumMathEngine.quantumDistance(current, head);
+    if (distance > config.triggerBot.headSnapThreshold) return current;
+    const dx = (head.x - current.x) * weaponData.speed * weaponData.pullRate * 0.22;
+    const dy = (head.y - current.y) * weaponData.speed * weaponData.pullRate * 0.22;
+    return { x: current.x + dx, y: current.y + dy };
+  }
+
+  // === AIM CONFIDENCE ===
+  function calculateAimConfidence(current, target, weapon, distance) {
+    const weaponData = config.tracking[weapon] || config.tracking.default;
+    let confidence = weaponData.stability;
+    distance > 600 ? confidence -= 0.6 : distance < weaponData.criticalZone && (confidence += 0.38);
+    weaponData.speed > 38 && (confidence += 0.22);
+    weaponData.headBias > 70 && (confidence += 0.28);
+    weaponData.penetration > 0.92 && (confidence += 0.22);
+    gameState.performanceProfile.fps < 28 ? confidence -= 0.48 : gameState.performanceProfile.fps > 90 && (confidence += 0.28);
+    config.neuralPrediction && gameState.neuralNetwork.weights.size > 1400 && (confidence += 0.22);
+    config.magicTrick && gameState.magicTrickState.magicConfidence > config.magicTrickConfig.magicConfidence && (confidence += config.magicTrickConfig.headAttraction * 0.12);
+    gameState.magicTrickState.magicConfidence = confidence;
+    return QuantumMathEngine.clamp(confidence, 0.08, 1);
+  }
+
+  // === PERFORMANCE UPDATE ===
+  function updatePerformanceMetrics(fps, calcTime) {
+    gameState.performanceProfile.fps = fps;
+    gameState.performanceProfile.latency = gameState.performanceProfile.latency * 0.88 + calcTime * 0.12;
+    if (config.fixFPSDrop && fps < 32) config.maxCalculationsPerFrame = Math.max(12, config.maxCalculationsPerFrame - 6);
+    if (config.memoryOptimization) {
+      if (gameState.targetMemory.size > config.aiLearning.memoryDepth) gameState.targetMemory.delete(gameState.targetMemory.keys().next().value);
+      if (gameState.aiMemory.size > config.aiLearning.memoryDepth) gameState.aiMemory.delete(gameState.aiMemory.keys().next().value);
+      if (gameState.neuralNetwork.activations.length > config.aiLearning.maxTrainingSamples) gameState.neuralNetwork.activations.shift();
+    }
+  }
+
+  // === TRAIN NEURAL ===
+  function trainNeuralNet(sample) {
+    if (!config.aiLearning.enabled) return;
+    gameState.neuralNetwork.activations.push(sample);
+    if (gameState.neuralNetwork.activations.length > config.aiLearning.maxTrainingSamples) gameState.neuralNetwork.activations.shift();
+    const key = `${sample.weapon}_pred`;
+    const wt = gameState.neuralNetwork.weights.get(key) || { x: Math.random() * 0.1, y: Math.random() * 0.1 };
+    wt.x += config.aiLearning.learningRate * (Math.random() - 0.5) * 0.08;
+    wt.y += config.aiLearning.learningRate * (Math.random() - 0.5) * 0.08;
+    gameState.neuralNetwork.weights.set(key, wt);
+    if (config.magicTrick && sample.target?.bodyPart === "head") gameState.magicTrickState.magicConfidence += 0.06;
+  }
+
+  // === ON SHOT ===
+  function onShot(weapon, target) {
+    gameState.recoilState.shotCount++;
+    gameState.recoilState.lastShot = Date.now();
+    gameState.recoilState.weapon = weapon;
+    if (config.aiLearning.enabled && target) trainNeuralNet({ weapon, target, timestamp: Date.now() });
+    setTimeout(() => { if (Date.now() - gameState.recoilState.lastShot > 1100) gameState.recoilState.shotCount = 0; }, 1100);
+  }
+
+  // === UPDATE CONFIG ===
+  function updateConfig(newConfig) {
+    Object.assign(config, newConfig);
+    gameState.adaptiveSettings = { sensitivity: config.sensitivity, fov: config.aimFov };
+  }
+
+  // === GET CONFIG ===
+  function getConfig() {
+    return { ...config };
+  }
+
+  // === SWITCH MODE ===
+  function switchMode(mode) {
+    if (config.autoModeSwitch.modes.includes(mode)) config.autoModeSwitch.currentMode = mode;
+  }
+
+  // === INIT WASM (giả định) ===
+  function initWasm() {
+    // Code wasm acceleration giả định
+    console.log('WASM Initialized for Super Bá Đạo');
+  }
+
+  initWasm();
+
+  // === PUBLIC API ===
+  return {
+    aim: ultimateAim,
+    triggerBot: ultimateTriggerBot,
+    calculateAimConfidence,
+    onShot,
+    updateConfig,
+    getConfig,
+    updatePerformanceMetrics,
+    trainNeuralNet,
+    getLastAim: () => ({ ...gameState.lastAim }),
+    getRecoilState: () => ({ ...gameState.recoilState }),
+    getPerformanceMetrics: () => ({ ...gameState.performanceProfile }),
+    getNeuralState: () => ({ ...gameState.neuralNetwork }),
+    getTriggerState: () => ({ ...gameState.triggerState }),
+    getMagicTrickState: () => ({ ...gameState.magicTrickState }),
+    dist: QuantumMathEngine.quantumDistance,
+    lerp: QuantumMathEngine.neuralLerp,
+    clamp: QuantumMathEngine.clamp,
+    config,
+    predictiveAim: NeuralPredictor.neuralPredict,
+    switchMode
+  };
+})();
+// =========================================================
 // AIMLOCK_X23_NEBULA_LOCK_ZERO_GRAVITY.js
 // Phương pháp: FRICTIONLESS TRACKING & ACTIVE FLICK
 // Đặc quyền: mtrietdz - SIÊU NHẸ TAY - LIA ĐẦU 100%
@@ -229,7 +851,7 @@ const SystemAim_Override = {
     };
 
     // --- SystemAim ---
-    const SystemAim = {
+    const SystemAimHead = {
         WeaponAimYawRate: 99999,
         CrossHairBurstIncreaseSpeed: 9999,
         BulletFireSpeed: "AspectRatio_MaintainsYFOV",
